@@ -2,6 +2,17 @@
   <div class="login-container">
     <div class="login-box">
       <h1>Login</h1>
+
+      <div class="role-selection" v-if="!show2fa && import.meta.env.DEV">
+        <label>Login as:</label>
+        <input type="radio" id="admin" value="admin" v-model="selectedRole" />
+        <label for="admin">Admin</label>
+        <input type="radio" id="teacher" value="teacher" v-model="selectedRole" />
+        <label for="teacher">Teacher</label>
+        <input type="radio" id="student" value="student" v-model="selectedRole" />
+        <label for="student">Student</label>
+      </div>
+
       <form @submit.prevent="handleLogin" v-if="!show2fa">
         <div class="input-group">
           <label for="username">Username</label>
@@ -28,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { loginApi } from '@/services/api';
 import { useAuthStore } from '@/stores/auth';
@@ -39,13 +50,36 @@ const twoFactorCode = ref('');
 const errorMessage = ref('');
 const show2fa = ref(false);
 const refreshToken = ref<string | null>(null);
+const selectedRole = ref('admin'); // Default selected role for dev
 
 const router = useRouter();
 const authStore = useAuthStore();
 
+const defaultCredentials = {
+  admin: { username: 'admin', password: 'password', twoFactorCode: '123456' },
+  teacher: { username: 'teacher', password: 'password', twoFactorCode: '123456' },
+  student: { username: 'student', password: 'password', twoFactorCode: '123456' },
+};
+
+const fillCredentials = (role: string) => {
+  if (import.meta.env.DEV && defaultCredentials[role]) {
+    username.value = defaultCredentials[role].username;
+    password.value = defaultCredentials[role].password;
+    twoFactorCode.value = defaultCredentials[role].twoFactorCode;
+  }
+};
+
+onMounted(() => {
+  fillCredentials(selectedRole.value);
+});
+
+watch(selectedRole, (newRole) => {
+  fillCredentials(newRole);
+});
+
 const handleLogin = async () => {
   try {
-    const response = await loginApi.post('/login/v1', {
+    const response = await loginApi.post('/v1', {
       user_name: username.value,
       user_password: password.value,
     });
@@ -69,7 +103,7 @@ const handle2fa = async () => {
   }
 
   try {
-    const response = await loginApi.post('/login/v2', 
+    const response = await loginApi.post('/v2', 
       { fa_code: twoFactorCode.value }, 
       { headers: { Authorization: `Bearer ${refreshToken.value}` } 
     });
@@ -161,5 +195,13 @@ h1 {
 .error-message {
   color: red;
   margin-top: 1rem;
+}
+
+.role-selection {
+  margin-bottom: 1rem;
+}
+
+.role-selection label {
+  margin-right: 0.5rem;
 }
 </style>

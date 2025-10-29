@@ -13,8 +13,6 @@
       </li>
     </ul>
     <p v-else>No students enrolled in this course.</p>
-
-    <router-link :to="{ name: 'TeacherDashboard' }">Back to Dashboard</router-link>
   </div>
   <div v-else>
     <p>Loading course details...</p>

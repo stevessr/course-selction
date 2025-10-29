@@ -15,6 +15,58 @@ DEFAULT_ADMINS = [
     }
 ]
 
+# Default teacher accounts (optional)
+DEFAULT_TEACHERS = [
+    {
+        "teacher_name": "Dr. Smith",
+        "teacher_id": 1
+    },
+    {
+        "teacher_name": "Prof. Johnson",
+        "teacher_id": 2
+    }
+]
+
+# Default student accounts (optional)
+DEFAULT_STUDENTS = [
+    {
+        "student_name": "Alice Johnson",
+        "student_id": 1001
+    },
+    {
+        "student_name": "Bob Smith",
+        "student_id": 1002
+    }
+]
+
+# Default courses (optional)
+DEFAULT_COURSES = [
+    {
+        "course_id": 1,
+        "course_name": "Introduction to Computer Science",
+        "course_credit": 3,
+        "course_type": "core",
+        "course_teacher_id": 1,
+        "course_time_begin": 900,  # 9:00 AM in minutes from midnight
+        "course_time_end": 1020,   # 10:00 AM in minutes from midnight
+        "course_location": "A101",
+        "course_capacity": 50,
+        "course_selected": 0
+    },
+    {
+        "course_id": 2,
+        "course_name": "Data Structures",
+        "course_credit": 4,
+        "course_type": "core",
+        "course_teacher_id": 1,
+        "course_time_begin": 1030,  # 10:30 AM
+        "course_time_end": 1150,    # 11:50 AM
+        "course_location": "A202",
+        "course_capacity": 40,
+        "course_selected": 0
+    }
+]
+
 # System configuration
 SYSTEM_CONFIG = {
     "system_name": "Course Selection System",

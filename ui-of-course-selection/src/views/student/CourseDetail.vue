@@ -7,7 +7,6 @@
     <p><strong>Capacity:</strong> {{ store.courseDetail.course_capacity }}</p>
     <p><strong>Selected:</strong> {{ store.courseDetail.course_selected }}</p>
     <p><strong>Is Selected:</strong> {{ store.courseDetail.is_selected ? 'Yes' : 'No' }}</p>
-    <router-link :to="{ name: 'StudentDashboard' }">Back to Dashboard</router-link>
   </div>
   <div v-else>
     <p>Loading course details...</p>

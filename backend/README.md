@@ -32,6 +32,32 @@ The system is divided into 5 services:
    # Edit backend/.env with your configuration
    ```
 
+3. Initialize the database and create default admin accounts:
+   ```bash
+   python init_db.py
+   # Or use the direct method if bcrypt is problematic:
+   python create_admins.py
+   ```
+
+## Default Configuration
+
+### Default Admin Accounts
+
+The system comes with default admin accounts for initial access:
+
+- Username: `admin`, Password: `admin123`
+- Username: `super_admin`, Password: `super123`
+
+**IMPORTANT: Change these default passwords immediately after first login for security reasons.**
+
+### Default System Settings
+
+The system includes various configurable settings for:
+- Security (password policies, 2FA, session timeouts)
+- Course management (limits, deadlines, conflict checking)
+- Queue processing (priorities, retry logic, timeouts)
+- Notifications (email, SMS)
+
 ## Running Services
 
 Each service can be run independently:

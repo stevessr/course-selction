@@ -1,6 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Login from '../views/Login.vue';
 import { useAuthStore } from '@/stores/auth';
+import StudentLayout from '@/layouts/StudentLayout.vue';
+import TeacherLayout from '@/layouts/TeacherLayout.vue';
+import AdminLayout from '@/layouts/AdminLayout.vue';
 
 const routes = [
   {
@@ -14,33 +17,49 @@ const routes = [
   },
   {
     path: '/student',
-    name: 'StudentDashboard',
-    component: () => import('../views/student/Dashboard.vue'),
-    meta: { requiresAuth: true, role: 'student' }
-  },
-  {
-    path: '/student/course/:id',
-    name: 'StudentCourseDetail',
-    component: () => import('../views/student/CourseDetail.vue'),
-    meta: { requiresAuth: true, role: 'student' }
+    component: StudentLayout,
+    meta: { requiresAuth: true, role: 'student' },
+    children: [
+      {
+        path: '',
+        name: 'StudentDashboard',
+        component: () => import('../views/student/Dashboard.vue')
+      },
+      {
+        path: 'course/:id',
+        name: 'StudentCourseDetail',
+        component: () => import('../views/student/CourseDetail.vue')
+      }
+    ]
   },
   {
     path: '/teacher',
-    name: 'TeacherDashboard',
-    component: () => import('../views/teacher/Dashboard.vue'),
-    meta: { requiresAuth: true, role: 'teacher' }
-  },
-  {
-    path: '/teacher/course/:id',
-    name: 'TeacherCourseDetail',
-    component: () => import('../views/teacher/CourseDetail.vue'),
-    meta: { requiresAuth: true, role: 'teacher' }
+    component: TeacherLayout,
+    meta: { requiresAuth: true, role: 'teacher' },
+    children: [
+      {
+        path: '',
+        name: 'TeacherDashboard',
+        component: () => import('../views/teacher/Dashboard.vue')
+      },
+      {
+        path: 'course/:id',
+        name: 'TeacherCourseDetail',
+        component: () => import('../views/teacher/CourseDetail.vue')
+      }
+    ]
   },
   {
     path: '/admin',
-    name: 'AdminDashboard',
-    component: () => import('../views/admin/Dashboard.vue'),
-    meta: { requiresAuth: true, role: 'admin' }
+    component: AdminLayout,
+    meta: { requiresAuth: true, role: 'admin' },
+    children: [
+      {
+        path: '',
+        name: 'AdminDashboard',
+        component: () => import('../views/admin/Dashboard.vue')
+      }
+    ]
   },
   {
     path: '/:pathMatch(.*)*',

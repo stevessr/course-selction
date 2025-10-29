@@ -20,27 +20,27 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/login': {
-        target: 'http://localhost:8001',
+        target: 'http://localhost:8002',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/login/, ''),
       },
       '/api/course': {
-        target: 'http://localhost:8002',
+        target: 'http://localhost:8003',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/course/, ''),
       },
       '/api/teacher': {
-        target: 'http://localhost:8003',
+        target: 'http://localhost:8004',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/teacher/, ''),
       },
       '/api/student': {
-        target: 'http://localhost:8004',
+        target: 'http://localhost:8005',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/student/, ''),
       },
       '/api/queue': {
-        target: 'http://localhost:8005',
+        target: 'http://localhost:8006',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/queue/, ''),
       },
