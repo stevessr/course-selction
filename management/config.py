@@ -1,32 +1,30 @@
-
-"""
-应用配置：数据库、限速（rate limit）和初始管理员账户。
+"""应用配置：数据库、限速（rate limit）和初始管理员账户。
 
 使用环境变量进行预配置，提供 `get_config()` 返回一个配置对象。
 
 支持的环境变量（示例）：
-  # 数据库：优先使用 DB_URL（例如 sqlite:///./data.db 或 postgresql://user:pass@host:port/dbname）
-  DB_URL             # 可选，完整的数据库连接字符串
-  DB_DRIVER          # 可选，'sqlite'|'postgres'|'mysql'（仅作记录；当 DB_URL 未设置，才使用下面字段）
-  DB_HOST
-  DB_PORT
-  DB_USER
-  DB_PASSWORD
-  DB_NAME
+	# 数据库：优先使用 DB_URL（例如 sqlite:///./data.db 或 postgresql://user:pass@host:port/dbname）
+	DB_URL             # 可选，完整的数据库连接字符串
+	DB_DRIVER          # 可选，'sqlite'|'postgres'|'mysql'（仅作记录；当 DB_URL 未设置，才使用下面字段）
+	DB_HOST
+	DB_PORT
+	DB_USER
+	DB_PASSWORD
+	DB_NAME
 
-  # 限速（每分钟请求数）
-  RATE_LIMIT_RPM     # 可选，整数，默认 60
+	# 限速（每分钟请求数）
+	RATE_LIMIT_RPM     # 可选，整数，默认 60
 
-  # 初始管理员账户（用于首次启动时创建管理员）
-  ADMIN_USERNAME     # 可选，默认 'admin'
-  ADMIN_PASSWORD     # 可选，明文密码（如果提供，会用 PBKDF2-HMAC-SHA256 派生），建议仅在引导时使用一次
-  ADMIN_PASSWORD_HASH# 可选，已派生的密码哈希（hex），优先于 ADMIN_PASSWORD
-  ADMIN_SALT         # 可选，hex 格式的 salt，与 ADMIN_PASSWORD_HASH 配合使用（若只提供 ADMIN_PASSWORD 则自动生成 salt）
+	# 初始管理员账户（用于首次启动时创建管理员）
+	ADMIN_USERNAME     # 可选，默认 'admin'
+	ADMIN_PASSWORD     # 可选，明文密码（如果提供，会用 PBKDF2-HMAC-SHA256 派生），建议仅在引导时使用一次
+	ADMIN_PASSWORD_HASH# 可选，已派生的密码哈希（hex），优先于 ADMIN_PASSWORD
+	ADMIN_SALT         # 可选，hex 格式的 salt，与 ADMIN_PASSWORD_HASH 配合使用（若只提供 ADMIN_PASSWORD 则自动生成 salt）
 
 简要说明：
-  - 本模块不引入额外第三方依赖，使用标准库实现密码派生（PBKDF2-HMAC-SHA256）。
-  - 仅在需要时（例如应用第一次启动）使用 `get_config()` 返回的 `admin` 信息来创建初始管理员。
-  - 如果需要更强的密码策略或第三方库（bcrypt/argon2），建议在部署时替换相关函数。
+	- 本模块不引入额外第三方依赖，使用标准库实现密码派生（PBKDF2-HMAC-SHA256）。
+	- 仅在需要时（例如应用第一次启动）使用 `get_config()` 返回的 `admin` 信息来创建初始管理员。
+	- 如果需要更强的密码策略或第三方库（bcrypt/argon2），建议在部署时替换相关函数。
 """
 
 from __future__ import annotations
