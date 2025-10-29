@@ -53,11 +53,11 @@ if [ "$1" == "start" ]; then
   stop_backend_service "queue"
   stop_frontend
   echo "Starting new cluster..."
+  start_backend_service "course_data" 8001
   start_backend_service "login" 8002
-  start_backend_service "course_data" 8003
-  start_backend_service "teacher" 8004
-  start_backend_service "student" 8005
-  start_backend_service "queue" 8006
+  start_backend_service "teacher" 8003
+  start_backend_service "student" 8004
+  start_backend_service "queue" 8005
   start_frontend
   echo "Development cluster started."
 elif [ "$1" == "stop" ]; then

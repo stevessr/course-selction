@@ -1,14 +1,10 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from fastapi import HTTPException, status
 from .settings import settings
 from .database import User
-
-
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__default_rounds=12)
 
 
 # JWT token creation
@@ -48,15 +44,29 @@ def verify_token(token: str, credentials_exception):
 
 # Verify password
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verify a password against a hashed password"""
+    if isinstance(plain_password, str):
+        plain_password = plain_password.encode('utf-8')
+    if isinstance(hashed_password, str):
+        hashed_password = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(plain_password, hashed_password)
 
 
 # Hash password
 def get_password_hash(password):
+    """Hash a password using bcrypt"""
     # Ensure password is within bcrypt limit (72 bytes)
-    if len(password.encode('utf-8')) > 72:
-        password = password[:72]  # Truncate to 72 characters
-    return pwd_context.hash(password)
+    if isinstance(password, str):
+        password = password.encode('utf-8')
+    if len(password) > 72:
+        password = password[:72]  # Truncate to 72 bytes
+
+    # Generate salt and hash
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password, salt)
+
+    # Return as string for database storage
+    return hashed.decode('utf-8')
 
 
 # Get user by username (placeholder - needs to be implemented based on your database)
