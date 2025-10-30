@@ -2,12 +2,19 @@ from fastapi import FastAPI, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
-import redis
 import uuid
 from datetime import datetime
 from ..database import QueueTask, SessionLocal, engine
 from ..settings import settings
 from ..node_manager import node_manager, verify_protection_token
+
+# Try to import redis, but provide fallback if not available
+try:
+    import redis as redis_module
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    redis_module = None
 
 
 # Dependency to get database session
@@ -94,12 +101,92 @@ async def startup_event():
     from ..node_manager import initialize_node
     await initialize_node()
 
+    # Log queue mode
+    if isinstance(redis_client, DatabaseQueueFallback):
+        print("🔄 Queue Node running in DATABASE FALLBACK mode")
+    elif REDIS_AVAILABLE and redis_client:
+        print("🚀 Queue Node running in REDIS mode")
+    else:
+        print("⚠️  Queue Node running in DEGRADED mode")
+
 # Create tables
 from ..database import Base
 Base.metadata.create_all(bind=engine)
 
-# Initialize Redis connection
-redis_client = redis.Redis.from_url(settings.redis_url)
+# Initialize Redis connection with fallback
+redis_client = None
+if REDIS_AVAILABLE:
+    try:
+        redis_client = redis_module.Redis.from_url(
+            settings.redis_url,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+            decode_responses=False
+        )
+        # Test connection
+        redis_client.ping()
+        print(f"✅ Redis connected successfully at {settings.redis_url}")
+    except Exception as e:
+        print(f"⚠️  Redis connection failed: {e}")
+        print(f"⚠️  Falling back to database-only queue implementation")
+        redis_client = None
+else:
+    print(f"⚠️  Redis module not available")
+    print(f"⚠️  Using database-only queue implementation")
+
+
+class DatabaseQueueFallback:
+    """Fallback queue implementation using database when Redis is not available"""
+
+    def __init__(self, db_session_factory):
+        self.SessionLocal = db_session_factory
+
+    def lpush(self, queue_name: str, task_id: str) -> int:
+        """Add task to queue (simulated with database)"""
+        # In database-only mode, we just rely on the QueueTask table
+        # The task is already created, so we just return success
+        return 1
+
+    def llen(self, queue_name: str) -> int:
+        """Get queue length from database"""
+        db = self.SessionLocal()
+        try:
+            count = db.query(QueueTask).filter(QueueTask.status == "pending").count()
+            return count
+        finally:
+            db.close()
+
+    def lrem(self, queue_name: str, count: int, task_id: str) -> int:
+        """Remove task from queue (no-op in database mode, handled by status update)"""
+        # In database mode, cancellation is handled by updating task status
+        return 1
+
+    def ping(self) -> bool:
+        """Health check - always returns False for fallback mode"""
+        return False
+
+    def rpop(self, queue_name: str) -> Optional[bytes]:
+        """Get next task from queue"""
+        db = self.SessionLocal()
+        try:
+            # Get oldest pending task with highest priority
+            task = db.query(QueueTask).filter(
+                QueueTask.status == "pending"
+            ).order_by(
+                QueueTask.priority.desc(),
+                QueueTask.created_at.asc()
+            ).first()
+
+            if task:
+                return task.task_id.encode('utf-8')
+            return None
+        finally:
+            db.close()
+
+
+# Use database fallback if Redis is not available
+if redis_client is None:
+    redis_client = DatabaseQueueFallback(SessionLocal)
 
 
 def verify_internal_token(internal_token: str):
@@ -306,11 +393,13 @@ def get_student_tasks(
 @app.get("/queue/health")
 def queue_health_check():
     # Check Redis connection
-    try:
-        redis_connected = redis_client.ping()
-    except:
-        redis_connected = False
-    
+    redis_connected = False
+    if REDIS_AVAILABLE and isinstance(redis_client, redis_module.Redis):
+        try:
+            redis_connected = redis_client.ping()
+        except:
+            redis_connected = False
+
     # Check database connection
     try:
         # Make a simple query to test DB connection
@@ -319,20 +408,25 @@ def queue_health_check():
         db_test.close()
     except:
         db_connected = False
-    
+
     # Calculate status based on checks
     if redis_connected and db_connected:
         status = "healthy"
-    elif redis_connected or db_connected:
-        status = "degraded"
+        mode = "redis"
+    elif db_connected:
+        status = "healthy" if not REDIS_AVAILABLE else "degraded"
+        mode = "database-fallback"
     else:
         status = "unhealthy"
+        mode = "unknown"
     
     return {
         "status": status,
-        "queue_status": "healthy" if redis_connected else "unhealthy",
+        "mode": mode,
+        "queue_status": "healthy" if redis_connected else ("fallback" if db_connected else "unhealthy"),
         "consumer_count": 2,  # Placeholder
         "redis_connected": redis_connected,
+        "redis_available": REDIS_AVAILABLE,
         "database_connected": db_connected,
         "last_processed_at": int(datetime.now().timestamp())  # Placeholder
     }

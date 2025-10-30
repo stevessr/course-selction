@@ -56,7 +56,7 @@ class Teacher(Base):
 
 class User(Base):
     __tablename__ = "users"
-    
+
     user_id = Column(Integer, primary_key=True, index=True)
     user_name = Column(String, unique=True, index=True)
     user_password_hash = Column(String)
@@ -74,9 +74,19 @@ class Admin(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class OneTimeCredit(Base):
+    __tablename__ = "one_time_credits"
+
+    credit_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    is_used = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    used_at = Column(DateTime, nullable=True)
+    used_by = Column(String, nullable=True)  # user_name who used it
+
+
 class QueueTask(Base):
     __tablename__ = "queue_tasks"
-    
+
     task_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     student_id = Column(Integer, index=True)
     course_id = Column(Integer, index=True)

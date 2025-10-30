@@ -5,7 +5,7 @@ from backend.course_data.main import app as course_data_app
 from backend.login.main import app as login_app
 from backend.teacher.main import app as teacher_app
 from backend.student.main import app as student_app
-from backend.queue.main import app as queue_app
+from backend.queue_service.main import app as queue_app
 import json
 
 # Test clients for each service

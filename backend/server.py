@@ -27,7 +27,7 @@ def run_student():
 
 
 def run_queue():
-    from backend.queue.main import app
+    from backend.queue_service.main import app
     uvicorn.run(app, host="0.0.0.0", port=8005)
 
 

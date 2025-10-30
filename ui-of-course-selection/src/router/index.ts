@@ -15,22 +15,29 @@ const routes = [
     name: 'Login',
     component: Login
   },
+  // Admin routes
   {
-    path: '/student',
-    component: StudentLayout,
-    meta: { requiresAuth: true, role: 'student' },
+    path: '/admin/login',
+    name: 'AdminLogin',
+    component: () => import('../views/admin/Login.vue')
+  },
+  {
+    path: '/admin',
+    component: AdminLayout,
+    meta: { requiresAuth: true, role: 'admin' },
     children: [
       {
         path: '',
-        name: 'StudentDashboard',
-        component: () => import('../views/student/Dashboard.vue')
-      },
-      {
-        path: 'course/:id',
-        name: 'StudentCourseDetail',
-        component: () => import('../views/student/CourseDetail.vue')
+        name: 'AdminDashboard',
+        component: () => import('../views/admin/Dashboard.vue')
       }
     ]
+  },
+  // Teacher routes
+  {
+    path: '/teacher/login',
+    name: 'TeacherLogin',
+    component: () => import('../views/teacher/Login.vue')
   },
   {
     path: '/teacher',
@@ -49,15 +56,26 @@ const routes = [
       }
     ]
   },
+  // Student routes
   {
-    path: '/admin',
-    component: AdminLayout,
-    meta: { requiresAuth: true, role: 'admin' },
+    path: '/student/login',
+    name: 'StudentLogin',
+    component: () => import('../views/student/Login.vue')
+  },
+  {
+    path: '/student',
+    component: StudentLayout,
+    meta: { requiresAuth: true, role: 'student' },
     children: [
       {
         path: '',
-        name: 'AdminDashboard',
-        component: () => import('../views/admin/Dashboard.vue')
+        name: 'StudentDashboard',
+        component: () => import('../views/student/Dashboard.vue')
+      },
+      {
+        path: 'course/:id',
+        name: 'StudentCourseDetail',
+        component: () => import('../views/student/CourseDetail.vue')
       }
     ]
   },
