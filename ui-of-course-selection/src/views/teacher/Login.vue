@@ -1,85 +1,79 @@
 <template>
   <div class="login-container">
-    <div class="login-card">
+    <a-card class="login-card">
       <div class="login-header">
         <h1>教师登录</h1>
         <p class="subtitle">Teacher Login</p>
       </div>
 
       <!-- Step 1: Username and Password -->
-      <form v-if="!show2fa" @submit.prevent="handleLogin" class="login-form">
-        <div class="form-group">
-          <label for="username">教师账号</label>
-          <input
-            id="username"
-            v-model="username"
-            type="text"
+      <a-form v-if="!show2fa" @submit.prevent="handleLogin" class="login-form">
+        <a-form-item>
+          <a-input
+            v-model:value="username"
             placeholder="请输入教师账号"
-            required
             :disabled="isLoading"
+            size="large"
           />
-        </div>
+        </a-form-item>
 
-        <div class="form-group">
-          <label for="password">密码</label>
-          <input
-            id="password"
-            v-model="password"
-            type="password"
+        <a-form-item>
+          <a-input-password
+            v-model:value="password"
             placeholder="请输入密码"
-            required
             :disabled="isLoading"
+            size="large"
           />
-        </div>
+        </a-form-item>
 
-        <div v-if="errorMessage" class="error-message">
-          {{ errorMessage }}
-        </div>
+        <a-alert v-if="errorMessage" :message="errorMessage" type="error" show-icon />
 
-        <button type="submit" class="login-button" :disabled="isLoading">
-          {{ isLoading ? '登录中...' : '下一步' }}
-        </button>
-      </form>
+        <a-form-item>
+          <a-button type="primary" html-type="submit" :loading="isLoading" block size="large">
+            下一步
+          </a-button>
+        </a-form-item>
+      </a-form>
 
       <!-- Step 2: 2FA Code -->
-      <form v-else @submit.prevent="handle2fa" class="login-form">
+      <a-form v-else @submit.prevent="handle2fa" class="login-form">
         <div class="info-message">
           <p>请输入您的两步验证码</p>
         </div>
 
-        <div class="form-group">
-          <label for="twoFactorCode">验证码</label>
-          <input
-            id="twoFactorCode"
-            v-model="twoFactorCode"
-            type="text"
+        <a-form-item>
+          <a-input
+            v-model:value="twoFactorCode"
             placeholder="请输入 6 位验证码"
-            maxlength="6"
-            pattern="[0-9]{6}"
-            required
+            :maxlength="6"
             :disabled="isLoading"
+            size="large"
             autofocus
           />
-        </div>
+        </a-form-item>
 
-        <div v-if="errorMessage" class="error-message">
-          {{ errorMessage }}
-        </div>
+        <a-alert v-if="errorMessage" :message="errorMessage" type="error" show-icon />
 
-        <div class="button-group">
-          <button type="button" @click="show2fa = false" class="back-button" :disabled="isLoading">
-            返回
-          </button>
-          <button type="submit" class="login-button" :disabled="isLoading">
-            {{ isLoading ? '验证中...' : '验证' }}
-          </button>
-        </div>
-      </form>
+        <a-form-item>
+          <a-row :gutter="16">
+            <a-col :span="12">
+              <a-button @click="show2fa = false" :disabled="isLoading" block size="large">
+                返回
+              </a-button>
+            </a-col>
+            <a-col :span="12">
+              <a-button type="primary" html-type="submit" :loading="isLoading" block size="large">
+                验证
+              </a-button>
+            </a-col>
+          </a-row>
+        </a-form-item>
+      </a-form>
 
       <div class="login-footer">
         <router-link to="/login" class="back-link">← 返回角色选择</router-link>
       </div>
-    </div>
+    </a-card>
   </div>
 </template>
 
@@ -221,37 +215,6 @@ const handle2fa = async () => {
   gap: 20px;
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.form-group label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-}
-
-.form-group input {
-  padding: 12px 16px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: #f5576c;
-  box-shadow: 0 0 0 3px rgba(245, 87, 108, 0.1);
-}
-
-.form-group input:disabled {
-  background-color: #f3f4f6;
-  cursor: not-allowed;
-}
-
 .info-message {
   padding: 12px;
   background-color: #dbeafe;
@@ -259,68 +222,11 @@ const handle2fa = async () => {
   border-radius: 8px;
   color: #1e40af;
   font-size: 14px;
+  text-align: center;
 }
 
 .info-message p {
   margin: 0;
-}
-
-.error-message {
-  padding: 12px;
-  background-color: #fee2e2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  color: #dc2626;
-  font-size: 14px;
-}
-
-.login-button {
-  padding: 12px 24px;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.login-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
-}
-
-.login-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.button-group {
-  display: flex;
-  gap: 12px;
-}
-
-.back-button {
-  flex: 1;
-  padding: 12px 24px;
-  background: #f3f4f6;
-  color: #374151;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.back-button:hover:not(:disabled) {
-  background: #e5e7eb;
-}
-
-.back-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .login-footer {
@@ -339,4 +245,3 @@ const handle2fa = async () => {
   color: #f093fb;
 }
 </style>
-

@@ -1,39 +1,63 @@
 <template>
   <div class="login-container">
-    <div class="login-card">
+    <a-card class="login-card">
       <div class="login-header">
-        <h1>选课系统</h1>
+        <h1 class="title">选课系统</h1>
         <p class="subtitle">Course Selection System</p>
         <p class="description">请选择您的身份进行登录</p>
       </div>
 
-      <div class="role-cards">
-        <router-link to="/admin/login" class="role-card admin-card">
-          <div class="role-icon">👨‍💼</div>
-          <h2>管理员</h2>
-          <p>Administrator</p>
-          <div class="role-description">系统管理和配置</div>
-        </router-link>
+      <a-row :gutter="[24, 24]">
+        <a-col :xs="24" :sm="24" :md="8">
+          <router-link to="/admin/login">
+            <a-card hoverable class="role-card admin-card">
+              <template #cover>
+                <div class="role-icon">👨‍💼</div>
+              </template>
+              <a-card-meta title="管理员" description="Administrator">
+                <template #description>
+                  <p>系统管理和配置</p>
+                </template>
+              </a-card-meta>
+            </a-card>
+          </router-link>
+        </a-col>
 
-        <router-link to="/teacher/login" class="role-card teacher-card">
-          <div class="role-icon">👨‍🏫</div>
-          <h2>教师</h2>
-          <p>Teacher</p>
-          <div class="role-description">课程管理和教学</div>
-        </router-link>
+        <a-col :xs="24" :sm="24" :md="8">
+          <router-link to="/teacher/login">
+            <a-card hoverable class="role-card teacher-card">
+              <template #cover>
+                <div class="role-icon">👨‍🏫</div>
+              </template>
+              <a-card-meta title="教师" description="Teacher">
+                <template #description>
+                  <p>课程管理和教学</p>
+                </template>
+              </a-card-meta>
+            </a-card>
+          </router-link>
+        </a-col>
 
-        <router-link to="/student/login" class="role-card student-card">
-          <div class="role-icon">👨‍🎓</div>
-          <h2>学生</h2>
-          <p>Student</p>
-          <div class="role-description">选课和学习</div>
-        </router-link>
-      </div>
+        <a-col :xs="24" :sm="24" :md="8">
+          <router-link to="/student/login">
+            <a-card hoverable class="role-card student-card">
+              <template #cover>
+                <div class="role-icon">👨‍🎓</div>
+              </template>
+              <a-card-meta title="学生" description="Student">
+                <template #description>
+                  <p>选课和学习</p>
+                </template>
+              </a-card-meta>
+            </a-card>
+          </router-link>
+        </a-col>
+      </a-row>
 
       <div class="login-footer">
         <p class="footer-text">© 2025 选课系统 - Course Selection System</p>
       </div>
-    </div>
+    </a-card>
   </div>
 </template>
 
@@ -66,7 +90,7 @@
   margin-bottom: 48px;
 }
 
-.login-header h1 {
+.title {
   font-size: 36px;
   font-weight: 700;
   color: #667eea;
@@ -85,26 +109,10 @@
   margin: 0;
 }
 
-.role-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
 .role-card {
-  background: white;
-  border: 2px solid #e5e7eb;
   border-radius: 12px;
-  padding: 32px 24px;
   text-align: center;
-  text-decoration: none;
   transition: all 0.3s ease;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
 }
 
 .role-card:hover {
@@ -112,72 +120,27 @@
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
 }
 
-.admin-card {
-  border-color: #667eea;
+.role-icon {
+  font-size: 64px;
+  padding: 24px 0;
 }
 
-.admin-card:hover {
-  border-color: #667eea;
-  background: linear-gradient(135deg, #667eea10 0%, #764ba210 100%);
+.admin-card {
+  border: 2px solid #667eea;
 }
 
 .teacher-card {
-  border-color: #f5576c;
-}
-
-.teacher-card:hover {
-  border-color: #f5576c;
-  background: linear-gradient(135deg, #f093fb10 0%, #f5576c10 100%);
+  border: 2px solid #f5576c;
 }
 
 .student-card {
-  border-color: #00f2fe;
-}
-
-.student-card:hover {
-  border-color: #00f2fe;
-  background: linear-gradient(135deg, #4facfe10 0%, #00f2fe10 100%);
-}
-
-.role-icon {
-  font-size: 64px;
-  margin-bottom: 8px;
-}
-
-.role-card h2 {
-  font-size: 24px;
-  font-weight: 600;
-  margin: 0;
-  color: #1f2937;
-}
-
-.role-card p {
-  font-size: 14px;
-  color: #6b7280;
-  margin: 0;
-}
-
-.role-description {
-  font-size: 13px;
-  color: #9ca3af;
-  margin-top: 4px;
-}
-
-.admin-card h2 {
-  color: #667eea;
-}
-
-.teacher-card h2 {
-  color: #f5576c;
-}
-
-.student-card h2 {
-  color: #00f2fe;
+  border: 2px solid #00f2fe;
 }
 
 .login-footer {
   text-align: center;
   padding-top: 24px;
+  margin-top: 32px;
   border-top: 1px solid #e5e7eb;
 }
 
@@ -192,20 +155,12 @@
     padding: 32px 24px;
   }
 
-  .login-header h1 {
+  .title {
     font-size: 28px;
-  }
-
-  .role-cards {
-    grid-template-columns: 1fr;
   }
 
   .role-icon {
     font-size: 48px;
-  }
-
-  .role-card h2 {
-    font-size: 20px;
   }
 }
 </style>

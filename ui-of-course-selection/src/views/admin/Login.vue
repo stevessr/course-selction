@@ -1,49 +1,43 @@
 <template>
   <div class="login-container">
-    <div class="login-card">
+    <a-card class="login-card">
       <div class="login-header">
         <h1>管理员登录</h1>
         <p class="subtitle">Admin Login</p>
       </div>
 
-      <form @submit.prevent="handleLogin" class="login-form">
-        <div class="form-group">
-          <label for="username">管理员账号</label>
-          <input
-            id="username"
-            v-model="username"
-            type="text"
+      <a-form @submit.prevent="handleLogin" class="login-form">
+        <a-form-item>
+          <a-input
+            v-model:value="username"
             placeholder="请输入管理员账号"
-            required
             :disabled="isLoading"
+            size="large"
           />
-        </div>
+        </a-form-item>
 
-        <div class="form-group">
-          <label for="password">密码</label>
-          <input
-            id="password"
-            v-model="password"
-            type="password"
+        <a-form-item>
+          <a-input-password
+            v-model:value="password"
             placeholder="请输入密码"
-            required
             :disabled="isLoading"
+            size="large"
           />
-        </div>
+        </a-form-item>
 
-        <div v-if="errorMessage" class="error-message">
-          {{ errorMessage }}
-        </div>
+        <a-alert v-if="errorMessage" :message="errorMessage" type="error" show-icon />
 
-        <button type="submit" class="login-button" :disabled="isLoading">
-          {{ isLoading ? '登录中...' : '登录' }}
-        </button>
-      </form>
+        <a-form-item>
+          <a-button type="primary" html-type="submit" :loading="isLoading" block size="large">
+            登录
+          </a-button>
+        </a-form-item>
+      </a-form>
 
       <div class="login-footer">
         <router-link to="/login" class="back-link">← 返回角色选择</router-link>
       </div>
-    </div>
+    </a-card>
   </div>
 </template>
 
@@ -148,68 +142,6 @@ const handleLogin = async () => {
   gap: 20px;
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.form-group label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-}
-
-.form-group input {
-  padding: 12px 16px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.form-group input:disabled {
-  background-color: #f3f4f6;
-  cursor: not-allowed;
-}
-
-.error-message {
-  padding: 12px;
-  background-color: #fee2e2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  color: #dc2626;
-  font-size: 14px;
-}
-
-.login-button {
-  padding: 12px 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.login-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.login-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .login-footer {
   margin-top: 24px;
   text-align: center;
@@ -226,4 +158,3 @@ const handleLogin = async () => {
   color: #764ba2;
 }
 </style>
-

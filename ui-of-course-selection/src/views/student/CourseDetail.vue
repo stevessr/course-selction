@@ -1,15 +1,17 @@
 <template>
-  <div v-if="store.courseDetail">
-    <h1>{{ store.courseDetail.course_name }}</h1>
-    <p><strong>Credit:</strong> {{ store.courseDetail.course_credit }}</p>
-    <p><strong>Teacher:</strong> {{ store.courseDetail.teacher_name }}</p>
-    <p><strong>Location:</strong> {{ store.courseDetail.course_location }}</p>
-    <p><strong>Capacity:</strong> {{ store.courseDetail.course_capacity }}</p>
-    <p><strong>Selected:</strong> {{ store.courseDetail.course_selected }}</p>
-    <p><strong>Is Selected:</strong> {{ store.courseDetail.is_selected ? 'Yes' : 'No' }}</p>
-  </div>
+  <a-card v-if="store.courseDetail" :title="store.courseDetail.course_name">
+    <a-descriptions bordered :column="1">
+      <a-descriptions-item label="Credit">{{ store.courseDetail.course_credit }}</a-descriptions-item>
+      <a-descriptions-item label="Teacher">{{ store.courseDetail.teacher_name }}</a-descriptions-item>
+      <a-descriptions-item label="Location">{{ store.courseDetail.course_location }}</a-descriptions-item>
+      <a-descriptions-item label="Capacity">{{ store.courseDetail.course_capacity }}</a-descriptions-item>
+      <a-descriptions-item label="Selected">{{ store.courseDetail.course_selected }}</a-descriptions-item>
+      <a-descriptions-item label="Is Selected">{{ store.courseDetail.is_selected ? 'Yes' : 'No' }}</a-descriptions-item>
+    </a-descriptions>
+  </a-card>
+  <a-alert v-else-if="store.error" :message="store.error" type="error" show-icon />
   <div v-else>
-    <p>Loading course details...</p>
+    <a-spin tip="Loading course details..."></a-spin>
   </div>
 </template>
 
