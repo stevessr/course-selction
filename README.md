@@ -49,74 +49,104 @@ A comprehensive student course selection system built with FastAPI (Python) back
 
 ```
 
-## Installation
+## Quick Start / 快速开始
 
-### Backend
+For detailed setup instructions, see [SETUP.md](SETUP.md)
 
+详细的安装说明请参阅 [SETUP.md](SETUP.md)
+
+### 1. Install Dependencies / 安装依赖
+
+Backend / 后端:
 ```bash
-# Install Python dependencies
 pip install -e .
-
-# Or use uv (recommended)
-uv sync
+# or use uv: uv sync
 ```
 
-### Frontend
-
+Frontend / 前端:
 ```bash
 cd frontend
 npm install
 ```
 
-## Running the Services
+### 2. Configure Environment / 配置环境
 
-### Backend Services
-
-Each microservice can be run independently:
-
+Copy example config files and update INTERNAL_TOKEN:
 ```bash
-# Course Data Node (default: port 8001)
-python -m backend.data_node.main
-
-# Authentication Node (default: port 8002)
-python -m backend.auth_node.main
-
-# Teacher Service (default: port 8003)
-python -m backend.teacher_node.main
-
-# Student Service (default: port 8004)
-python -m backend.student_node.main
-
-# Queue Buffer Node (default: port 8005)
-python -m backend.queue_node.main
+cd backend/data_node && cp .env.example .env
+cd ../auth_node && cp .env.example .env
+cd ../teacher_node && cp .env.example .env
+cd ../student_node && cp .env.example .env
+cd ../queue_node && cp .env.example .env
 ```
 
-### Frontend
+### 3. Start Services / 启动服务
 
+Start all backend services:
+```bash
+./start_backend.sh
+```
+
+Start frontend:
 ```bash
 cd frontend
 npm run dev
 ```
 
-## Configuration
+### 4. Test the System / 测试系统
 
-Each backend service uses environment variables for configuration. Create `.env` files in each service directory:
-
-```env
-# Example for data_node/.env
-DATABASE_URL=sqlite:///./course_data.db
-SECRET_TOKEN=your-secret-token-here
-PORT=8001
+Run basic tests:
+```bash
+python test_system.py
 ```
 
-## Testing
+Open browser:
+- Frontend: http://localhost:3000
+- API Docs: http://localhost:8002/docs (Auth), http://localhost:8004/docs (Student), etc.
 
+Default admin credentials / 默认管理员凭据:
+- Username: `admin`
+- Password: `admin123`
+
+## Architecture / 架构
+
+The system is built as a microservices architecture:
+
+```
+Frontend (Vue3 + Ant Design)
+    ↓
+API Gateway / Proxy (Vite Dev Server)
+    ↓
+┌─────────────────────────────────────┐
+│   Backend Microservices             │
+│                                     │
+│  ┌──────────┐  ┌──────────┐       │
+│  │Auth Node │  │Data Node │       │
+│  └────┬─────┘  └────┬─────┘       │
+│       │             │              │
+│  ┌────▼─────┐  ┌───▼──────┐       │
+│  │Teacher   │  │Student   │       │
+│  │Service   │  │Service   │       │
+│  └──────────┘  └────┬─────┘       │
+│                     │              │
+│                ┌────▼─────┐        │
+│                │Queue Node│        │
+│                └──────────┘        │
+└─────────────────────────────────────┘
+         ↓
+    SQLite Database
+```
+
+## Testing / 测试
+
+Run unit tests:
 ```bash
-# Run tests
-pytest
+pytest tests/ -v
+```
 
-# With coverage
-pytest --cov=backend --cov-report=html
+Run system tests:
+```bash
+python test_system.py
 ```
 
 ## API Documentation
