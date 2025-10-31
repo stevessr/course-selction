@@ -25,6 +25,10 @@ A comprehensive student course selection system built with FastAPI (Python) back
 - Refresh token + access token mechanism / 刷新令牌 + 访问令牌机制
 - SQLite database with master-slave replication support / SQLite 数据库支持主从复制
 - Role-based access control (Student, Teacher, Admin) / 基于角色的访问控制（学生、教师、管理员）
+- **CSV user import / CSV 用户导入** ✨ NEW
+- **Random user generation / 随机用户生成** ✨ NEW
+- **Complete test suite / 完整测试套件** ✨ NEW
+- **DevContainer support / DevContainer 支持** ✨ NEW
 
 ## Project Structure
 
@@ -53,9 +57,25 @@ A comprehensive student course selection system built with FastAPI (Python) back
 
 For detailed setup instructions, see [SETUP.md](SETUP.md)
 
+For developer guide, see [DEVELOPER.md](DEVELOPER.md)
+
+For user guide, see [USER_GUIDE.md](USER_GUIDE.md)
+
 详细的安装说明请参阅 [SETUP.md](SETUP.md)
 
-### 1. Install Dependencies / 安装依赖
+开发者指南请参阅 [DEVELOPER.md](DEVELOPER.md)
+
+用户指南请参阅 [USER_GUIDE.md](USER_GUIDE.md)
+
+### Option 1: DevContainer (Recommended) / 使用 DevContainer（推荐）
+
+1. Install Docker and VS Code with Dev Containers extension
+2. Open project in VS Code
+3. Click "Reopen in Container"
+4. Wait for setup to complete
+5. Start developing!
+
+### Option 2: Manual Setup / 手动安装
 
 Backend / 后端:
 ```bash
@@ -69,18 +89,15 @@ cd frontend
 npm install
 ```
 
-### 2. Configure Environment / 配置环境
-
-Copy example config files and update INTERNAL_TOKEN:
+Configure Environment / 配置环境:
 ```bash
+# Copy example config files
 cd backend/data_node && cp .env.example .env
 cd ../auth_node && cp .env.example .env
 cd ../teacher_node && cp .env.example .env
 cd ../student_node && cp .env.example .env
 cd ../queue_node && cp .env.example .env
 ```
-
-### 3. Start Services / 启动服务
 
 Start all backend services:
 ```bash
@@ -93,20 +110,60 @@ cd frontend
 npm run dev
 ```
 
-### 4. Test the System / 测试系统
+### Access / 访问
 
-Run basic tests:
-```bash
-python test_system.py
-```
-
-Open browser:
 - Frontend: http://localhost:3000
 - API Docs: http://localhost:8002/docs (Auth), http://localhost:8004/docs (Student), etc.
 
 Default admin credentials / 默认管理员凭据:
 - Username: `admin`
 - Password: `admin123`
+
+## Tools & Utilities / 工具
+
+### Generate Random Users / 生成随机用户
+
+```bash
+# Generate 50 students
+python -m backend.common.user_generator 50 --output students.csv
+
+# Generate 20 teachers
+python -m backend.common.user_generator 20 --type teacher --output teachers.csv
+```
+
+### Import Users from CSV / 从 CSV 导入用户
+
+```bash
+# Import from CSV file
+python -m backend.common.csv_import students.csv --type student
+
+# With auto-generated passwords
+python -m backend.common.csv_import users.csv --generate-passwords --output results.csv
+```
+
+CSV Format:
+```csv
+username,password,name,email
+alice.johnson,pass123,Alice Johnson,alice@example.com
+```
+
+See `examples/users_example.csv` for a complete example.
+
+### Run Tests / 运行测试
+
+```bash
+# Unit tests
+pytest tests/test_basic.py -v
+
+# Integration tests (requires running services)
+pytest tests/test_integration.py -v -s
+
+# All tests with coverage
+pytest tests/ --cov=backend --cov-report=html
+
+# System integration test
+python test_system.py
+```
 
 ## Architecture / 架构
 
