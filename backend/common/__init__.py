@@ -15,6 +15,7 @@ from .schemas import (
     CourseCreate,
     CourseUpdate,
     CourseResponse,
+    CourseSelectionRequest,
     StudentCreate,
     StudentResponse,
     TeacherCreate,
@@ -26,6 +27,8 @@ from .schemas import (
     TokenResponse,
     RefreshTokenResponse,
     AccessTokenResponse,
+    QueueTaskResponse,
+    AdminCreate,
 )
 from .security import (
     verify_password,
@@ -75,6 +78,7 @@ __all__ = [
     "CourseCreate",
     "CourseUpdate",
     "CourseResponse",
+    "CourseSelectionRequest",
     "StudentCreate",
     "StudentResponse",
     "TeacherCreate",
@@ -86,6 +90,8 @@ __all__ = [
     "TokenResponse",
     "RefreshTokenResponse",
     "AccessTokenResponse",
+    "QueueTaskResponse",
+    "AdminCreate",
     # Security
     "verify_password",
     "get_password_hash",

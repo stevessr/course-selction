@@ -47,3 +47,7 @@ target-version = "py310"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["backend*", "common*"]
+exclude = ["frontend*", "ui-of-course-selection*"]
