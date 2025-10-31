@@ -8,6 +8,31 @@ wheels/
 
 # Virtual environments
 .venv
-node_modules
+venv/
+env/
+node_modules/
+
+# Logs and databases
 *.log
 *.pid
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend build
+frontend/dist/
+frontend/.vite/
