@@ -34,7 +34,7 @@ class CourseUpdate(BaseModel):
 class CourseResponse(CourseBase):
     course_id: int
     course_selected: int
-    course_left: int
+    course_left: int  # Available seats (calculated as capacity - selected)
     created_at: datetime
     updated_at: datetime
 

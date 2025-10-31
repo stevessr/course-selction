@@ -523,12 +523,21 @@ if __name__ == "__main__":
     with SessionLocal() as db:
         admin = db.query(Admin).filter(Admin.username == "admin").first()
         if not admin:
+            # SECURITY: Generate random password or use environment variable
+            default_password = os.getenv("ADMIN_PASSWORD", "admin123")
             admin = Admin(
                 username="admin",
-                password_hash=get_password_hash("admin123")
+                password_hash=get_password_hash(default_password)
             )
             db.add(admin)
             db.commit()
-            print("Initial admin created: username=admin, password=admin123")
+            print("=" * 60)
+            print("IMPORTANT: Initial admin created")
+            print(f"Username: admin")
+            print(f"Password: {default_password}")
+            if default_password == "admin123":
+                print("WARNING: Using default password! Change it in production!")
+                print("Set ADMIN_PASSWORD environment variable to use a custom password.")
+            print("=" * 60)
     
     uvicorn.run(app, host="0.0.0.0", port=PORT)

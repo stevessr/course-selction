@@ -270,8 +270,9 @@ async def get_student_schedule(
     student_courses = student.get("student_courses", [])
     
     # Get details for each course
+    # Initialize schedule for all days (1=Monday, 7=Sunday)
     schedule = {}
-    for i in range(1, 8):  # Days 1-7
+    for i in range(1, 8):
         schedule[i] = []
     
     for course_id in student_courses:
@@ -283,9 +284,10 @@ async def get_student_schedule(
                 headers={"Internal-Token": INTERNAL_TOKEN}
             )
             
-            # Simple schedule mapping based on course_time_begin
-            # In production, you'd have more sophisticated time slot handling
-            day = (course.get("course_time_begin", 0) % 7) + 1
+            # PLACEHOLDER: This is a simplified schedule mapping
+            # In production, implement proper time slot handling based on course_time_begin/end
+            # For now, map courses to days based on course_id modulo 7
+            day = ((course.get("course_id", 0) - 1) % 7) + 1
             schedule[day].append({
                 "course_id": course.get("course_id"),
                 "course_name": course.get("course_name"),

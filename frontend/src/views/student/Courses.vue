@@ -146,7 +146,8 @@ const selectCourse = async (course) => {
     const response = await studentApi.selectCourse(authStore.accessToken, course.course_id)
     message.success(response.message || 'Course selection submitted to queue')
     if (response.task_id) {
-      message.info(`Queue position: ${response.position}`)
+      const position = response.position || 'Unknown'
+      message.info(`Queue position: ${position}`)
     }
     setTimeout(() => loadCourses(), 2000)
   } catch (error) {

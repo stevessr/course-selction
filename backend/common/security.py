@@ -6,12 +6,14 @@ from passlib.context import CryptContext
 import pyotp
 import secrets
 import hashlib
+import os
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT configuration
-SECRET_KEY = "your-secret-key-change-this-in-production"
+# CRITICAL: Change SECRET_KEY in production via environment variable
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
