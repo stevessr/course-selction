@@ -343,10 +343,11 @@ async def health_check(db: Session = Depends(get_db)):
             "pending_tasks": pending,
             "processing_tasks": processing
         }
-    except Exception as e:
+    except Exception:
+        # SECURITY: Don't expose internal error details
         return {
             "status": "unhealthy",
-            "error": str(e),
+            "error": "Service unavailable",
             "database_connected": False
         }
 

@@ -534,10 +534,13 @@ if __name__ == "__main__":
             print("=" * 60)
             print("IMPORTANT: Initial admin created")
             print(f"Username: admin")
-            print(f"Password: {default_password}")
+            # SECURITY: Don't log the actual password
             if default_password == "admin123":
+                print("Password: admin123 (DEFAULT - CHANGE IMMEDIATELY!)")
                 print("WARNING: Using default password! Change it in production!")
                 print("Set ADMIN_PASSWORD environment variable to use a custom password.")
+            else:
+                print("Password: <set via ADMIN_PASSWORD environment variable>")
             print("=" * 60)
     
     uvicorn.run(app, host="0.0.0.0", port=PORT)
