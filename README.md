@@ -1,28 +1,30 @@
 # Course Selection System
 
+一个使用 FastAPI (Python) 后端和 Vue3 + Ant Design 前端构建的综合学生选课系统。
+
 A comprehensive student course selection system built with FastAPI (Python) backend and Vue3 + Ant Design frontend.
 
-## Features
+## Features / 功能特性
 
-### Backend (FastAPI Microservices)
-- **Course Data Node**: Course and student data management with SQLite
-- **Authentication Node**: User authentication with JWT tokens and 2FA
-- **Teacher Service**: Course CRUD operations and student management
-- **Student Service**: Course selection and schedule viewing
-- **Queue Buffer Node**: Rate limiting with token bucket algorithm
+### Backend (FastAPI Microservices) / 后端（FastAPI 微服务）
+- **Course Data Node / 课程数据节点**: Course and student data management with SQLite / 使用 SQLite 进行课程和学生数据管理
+- **Authentication Node / 认证节点**: User authentication with JWT tokens and 2FA / 使用 JWT 令牌和双因素认证的用户认证
+- **Teacher Service / 教师服务**: Course CRUD operations and student management / 课程增删改查操作和学生管理
+- **Student Service / 学生服务**: Course selection and schedule viewing / 选课和课程表查看
+- **Queue Buffer Node / 队列缓冲节点**: Rate limiting with token bucket algorithm / 使用令牌桶算法的限流控制
 
-### Frontend (Vue3 + Ant Design)
-- **Student Interface**: Course selection with 2FA authentication
-- **Teacher Interface**: Course management and student import
-- **Admin Interface**: User management and registration code generation
+### Frontend (Vue3 + Ant Design) / 前端（Vue3 + Ant Design）
+- **Student Interface / 学生界面**: Course selection with 2FA authentication / 带双因素认证的选课功能
+- **Teacher Interface / 教师界面**: Course management and student import / 课程管理和学生导入
+- **Admin Interface / 管理员界面**: User management and registration code generation / 用户管理和注册码生成
 
-### Key Features
-- Dual rate limiting (frontend token pool + backend rate limiting)
-- IP-based rate limiting with X-Forwarded-For support
-- 2FA authentication for students
-- Refresh token + access token mechanism
-- SQLite database with master-slave replication support
-- Role-based access control (Student, Teacher, Admin)
+### Key Features / 核心功能
+- Dual rate limiting (frontend token pool + backend rate limiting) / 双重限速（前端令牌池 + 后端限速）
+- IP-based rate limiting with X-Forwarded-For support / 支持 X-Forwarded-For 的 IP 限速
+- 2FA authentication for students / 学生双因素认证
+- Refresh token + access token mechanism / 刷新令牌 + 访问令牌机制
+- SQLite database with master-slave replication support / SQLite 数据库支持主从复制
+- Role-based access control (Student, Teacher, Admin) / 基于角色的访问控制（学生、教师、管理员）
 
 ## Project Structure
 
