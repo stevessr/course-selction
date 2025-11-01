@@ -3,7 +3,7 @@ import api from './request'
 const studentApi = {
   // Get available courses
   getAvailableCourses(accessToken, courseType = null, page = 1, pageSize = 20) {
-    return api.post('/student/student/courses/available',
+    return api.post('/student/courses/available',
       { course_type: courseType, page, page_size: pageSize },
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
@@ -11,14 +11,14 @@ const studentApi = {
 
   // Get selected courses
   getSelectedCourses(accessToken) {
-    return api.get('/student/student/courses/selected',
+    return api.get('/student/courses/selected',
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
   },
 
   // Select course
   selectCourse(accessToken, courseId) {
-    return api.post('/student/student/course/select',
+    return api.post('/student/course/select',
       { course_id: courseId },
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
@@ -26,7 +26,7 @@ const studentApi = {
 
   // Deselect course
   deselectCourse(accessToken, courseId) {
-    return api.post('/student/student/course/deselect',
+    return api.post('/student/course/deselect',
       { course_id: courseId },
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
@@ -34,7 +34,7 @@ const studentApi = {
 
   // Get course detail
   getCourseDetail(accessToken, courseId) {
-    return api.post('/student/student/course/detail',
+    return api.post('/student/course/detail',
       { course_id: courseId },
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
@@ -42,28 +42,28 @@ const studentApi = {
 
   // Get schedule
   getSchedule(accessToken) {
-    return api.get('/student/student/schedule',
+    return api.get('/student/schedule',
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
   },
 
   // Get stats
   getStats(accessToken) {
-    return api.get('/student/student/stats',
+    return api.get('/student/stats',
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
   },
 
   // Get queue status
   getQueueStatus(accessToken, taskId) {
-    return api.get(`/student/student/queue/status?task_id=${taskId}`,
+    return api.get(`/student/queue/status?task_id=${taskId}`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
   },
 
   // Check course conflicts
   checkCourseConflicts(accessToken, courseId) {
-    return api.post('/student/student/course/check',
+    return api.post('/student/course/check',
       { course_id: courseId },
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )

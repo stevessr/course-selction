@@ -10,10 +10,14 @@ class CourseBase(BaseModel):
     course_credit: int = Field(..., ge=0)
     course_type: str = Field(..., min_length=1, max_length=50)
     course_teacher_id: int = Field(..., ge=1)
-    course_time_begin: int = Field(...)
-    course_time_end: int = Field(...)
+    course_time_begin: Optional[int] = Field(None)  # Legacy field, optional
+    course_time_end: Optional[int] = Field(None)  # Legacy field, optional
+    course_schedule: Optional[dict] = Field(None)  # New: {"monday": [1,2], ...}
     course_location: str = Field(..., min_length=1, max_length=100)
     course_capacity: int = Field(..., ge=1)
+    course_tags: List[str] = Field(default_factory=list)  # Tags for enrollment
+    course_notes: str = Field(default="", max_length=500)
+    course_cost: int = Field(default=0, ge=0)
 
 
 class CourseCreate(CourseBase):
@@ -27,14 +31,20 @@ class CourseUpdate(BaseModel):
     course_teacher_id: Optional[int] = Field(None, ge=1)
     course_time_begin: Optional[int] = None
     course_time_end: Optional[int] = None
+    course_schedule: Optional[dict] = None
     course_location: Optional[str] = Field(None, min_length=1, max_length=100)
     course_capacity: Optional[int] = Field(None, ge=1)
+    course_tags: Optional[List[str]] = None
+    course_notes: Optional[str] = Field(None, max_length=500)
+    course_cost: Optional[int] = Field(None, ge=0)
+    is_active: Optional[bool] = None
 
 
 class CourseResponse(CourseBase):
     course_id: int
     course_selected: int
     course_left: int  # Available seats (calculated as capacity - selected)
+    is_active: bool
     created_at: datetime
     updated_at: datetime
 
@@ -45,12 +55,14 @@ class CourseResponse(CourseBase):
 # Student schemas
 class StudentCreate(BaseModel):
     student_name: str = Field(..., min_length=1, max_length=100)
+    student_tags: List[str] = Field(default_factory=list)
 
 
 class StudentResponse(BaseModel):
     student_id: int
     student_name: str
     student_courses: List[int] = []
+    student_tags: List[str] = []
     created_at: datetime
     updated_at: datetime
 
