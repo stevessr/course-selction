@@ -39,37 +39,30 @@ class Course(Base):
 
 
 class Student(Base):
-    """Student model with tags for course enrollment control"""
+    """Student model with authentication and 2FA"""
     __tablename__ = "students"
 
     student_id = Column(Integer, primary_key=True, autoincrement=True)
-    student_name = Column(String(100), nullable=False, unique=True)
+    username = Column(String(100), nullable=False, unique=True)
+    password_hash = Column(String(255), nullable=False)
+    student_name = Column(String(100), nullable=False)
     student_courses = Column(JSON, default=list)
     student_tags = Column(JSON, default=list)  # Tags for course enrollment eligibility
+    totp_secret = Column(String(32))  # For 2FA (students only)
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class Teacher(Base):
-    """Teacher model"""
+    """Teacher model with authentication (no 2FA)"""
     __tablename__ = "teachers"
 
     teacher_id = Column(Integer, primary_key=True, autoincrement=True)
-    teacher_name = Column(String(100), nullable=False, unique=True)
-    teacher_courses = Column(JSON, default=list)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-
-class User(Base):
-    """User model for authentication"""
-    __tablename__ = "users"
-
-    user_id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(100), nullable=False, unique=True)
     password_hash = Column(String(255), nullable=False)
-    user_type = Column(String(20), nullable=False)  # student, teacher, admin
-    totp_secret = Column(String(32))  # For 2FA
+    teacher_name = Column(String(100), nullable=False)
+    teacher_courses = Column(JSON, default=list)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
