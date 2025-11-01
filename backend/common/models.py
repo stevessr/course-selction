@@ -117,18 +117,7 @@ class ResetCode(Base):
     expires_at = Column(DateTime, nullable=False)
 
 
-class User(Base):
-    """Unified User model for authentication (students, teachers, etc.)"""
-    __tablename__ = "users"
 
-    user_id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String(100), nullable=False, unique=True)
-    password_hash = Column(String(255), nullable=False)
-    user_type = Column(String(20), nullable=False)  # 'student', 'teacher', etc.
-    totp_secret = Column(String(32))  # For 2FA (students only typically)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class QueueTask(Base):

@@ -7,7 +7,7 @@ from typing import Optional
 import os
 
 from backend.common import (
-    Base, User, Admin, RefreshToken, RegistrationCode, ResetCode,
+    Base, Student, Teacher, Admin, RefreshToken, RegistrationCode, ResetCode,
     UserCreate, UserLogin, User2FA, UserResponse, AdminResponse,
     AdminCreate, AdminLogin,
     RegistrationCodeCreate, RegistrationCodeResponse,
@@ -20,6 +20,10 @@ from backend.common import (
     generate_registration_code, generate_reset_code, hash_token,
     get_current_user_from_token,
     create_socket_server_config, SocketClient,
+)
+from backend.common.auth_helpers import (
+    get_user_by_username, get_user_by_id, get_user_id, get_user_type,
+    has_2fa, get_totp_secret, set_totp_secret, is_active
 )
 
 # Configuration
@@ -139,22 +143,36 @@ async def register_v1(
         # For now, allow registration without code for testing
         pass
     
-    # Check if user already exists
-    existing = db.query(User).filter(User.username == user_data.username).first()
-    if existing:
+    # Check if user already exists in the appropriate table
+    existing_user = get_user_by_username(db, user_data.username)
+    if existing_user:
         raise HTTPException(status_code=400, detail="Username already exists")
     
     # Generate 2FA secret only for students (not for teachers/admins)
     totp_secret = generate_totp_secret() if user_data.user_type == "student" else None
     
-    # Create user
-    db_user = User(
-        username=user_data.username,
-        password_hash=get_password_hash(user_data.password),
-        user_type=user_data.user_type,
-        totp_secret=totp_secret,
-        is_active=True
-    )
+    # Create user in appropriate table
+    if user_data.user_type == "student":
+        db_user = Student(
+            username=user_data.username,
+            password_hash=get_password_hash(user_data.password),
+            student_name=user_data.username,  # Set to username initially
+            totp_secret=totp_secret,
+            is_active=True,
+            student_courses=[],
+            student_tags=[]
+        )
+    elif user_data.user_type == "teacher":
+        db_user = Teacher(
+            username=user_data.username,
+            password_hash=get_password_hash(user_data.password),
+            teacher_name=user_data.username,  # Set to username initially
+            is_active=True,
+            teacher_courses=[]
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Invalid user type")
+    
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -162,12 +180,12 @@ async def register_v1(
     # Mark registration code as used
     if user_data.registration_code:
         reg_code.is_used = True
-        reg_code.used_by = db_user.user_id
+        reg_code.used_by = get_user_id(db_user)
         db.commit()
     
     # Revoke any existing refresh tokens for this user (shouldn't exist for new user, but be safe)
     existing_tokens = db.query(RefreshToken).filter(
-        RefreshToken.user_id == db_user.user_id,
+        RefreshToken.user_id == get_user_id(db_user),
         RefreshToken.is_revoked == False
     ).all()
     for token in existing_tokens:
@@ -175,15 +193,15 @@ async def register_v1(
     
     # Generate new refresh token
     refresh_token = create_refresh_token({
-        "user_id": db_user.user_id,
+        "user_id": get_user_id(db_user),
         "username": db_user.username,
-        "user_type": db_user.user_type
+        "user_type": user_data.user_type
     })
     
     # Store new refresh token
     token_hash = hash_token(refresh_token)
     db_token = RefreshToken(
-        user_id=db_user.user_id,
+        user_id=get_user_id(db_user),
         token_hash=token_hash,
         expires_at=datetime.utcnow() + timedelta(days=7)
     )
@@ -216,31 +234,31 @@ async def register_v2(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = db.query(User).filter(User.user_id == payload.get("user_id")).first()
+        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Verify TOTP code only if user has 2FA enabled
-        if user.totp_secret and user.totp_secret != "":
-            if not verify_totp(user.totp_secret, totp_data.totp_code):
+        # Verify TOTP code only if user has 2FA enabled (students only)
+        if has_2fa(user):
+            if not verify_totp(get_totp_secret(user), totp_data.totp_code):
                 raise HTTPException(status_code=400, detail="Invalid 2FA code")
         
         # Generate access token with different expiration based on user type
         from datetime import timedelta
-        if user.user_type == "teacher":
+        if get_user_type(user) == "teacher":
             # Teachers get 2 hours for longer sessions managing courses
             access_token = create_access_token({
-                "user_id": user.user_id,
+                "user_id": get_user_id(user),
                 "username": user.username,
-                "user_type": user.user_type
+                "user_type": get_user_type(user)
             }, expires_delta=timedelta(hours=2))
             expires_in = 2 * 3600  # 2 hours in seconds
         else:
             # Default 30 minutes for students and other user types
             access_token = create_access_token({
-                "user_id": user.user_id,
+                "user_id": get_user_id(user),
                 "username": user.username,
-                "user_type": user.user_type
+                "user_type": get_user_type(user)
             })
             expires_in = 30 * 60  # 30 minutes in seconds
         
@@ -259,17 +277,17 @@ async def login_v1(
     db: Session = Depends(get_db)
 ):
     """Login phase 1: Verify credentials and get refresh token"""
-    user = db.query(User).filter(User.username == login_data.username).first()
+    user = get_user_by_username(db, login_data.username)
     
     if not user or not verify_password(login_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    if not user.is_active:
+    if not is_active(user):
         raise HTTPException(status_code=403, detail="Account is inactive")
     
     # Revoke any existing refresh tokens for this user
     existing_tokens = db.query(RefreshToken).filter(
-        RefreshToken.user_id == user.user_id,
+        RefreshToken.user_id == get_user_id(user),
         RefreshToken.is_revoked == False
     ).all()
     for token in existing_tokens:
@@ -277,15 +295,15 @@ async def login_v1(
     
     # Generate new refresh token
     refresh_token = create_refresh_token({
-        "user_id": user.user_id,
+        "user_id": get_user_id(user),
         "username": user.username,
-        "user_type": user.user_type
+        "user_type": get_user_type(user)
     })
     
     # Store new refresh token
     token_hash = hash_token(refresh_token)
     db_token = RefreshToken(
-        user_id=user.user_id,
+        user_id=get_user_id(user),
         token_hash=token_hash,
         expires_at=datetime.utcnow() + timedelta(days=7)
     )
@@ -312,31 +330,31 @@ async def login_v2(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = db.query(User).filter(User.user_id == payload.get("user_id")).first()
+        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Verify TOTP code only if user has 2FA enabled
-        if user.totp_secret and user.totp_secret != "":
-            if not verify_totp(user.totp_secret, totp_data.totp_code):
+        # Verify TOTP code only if user has 2FA enabled (students only)
+        if has_2fa(user):
+            if not verify_totp(get_totp_secret(user), totp_data.totp_code):
                 raise HTTPException(status_code=400, detail="Invalid 2FA code")
         
         # Generate access token with different expiration based on user type
         from datetime import timedelta
-        if user.user_type == "teacher":
+        if get_user_type(user) == "teacher":
             # Teachers get 2 hours for longer sessions managing courses
             access_token = create_access_token({
-                "user_id": user.user_id,
+                "user_id": get_user_id(user),
                 "username": user.username,
-                "user_type": user.user_type
+                "user_type": get_user_type(user)
             }, expires_delta=timedelta(hours=2))
             expires_in = 2 * 3600  # 2 hours in seconds
         else:
             # Default 30 minutes for students and other user types
             access_token = create_access_token({
-                "user_id": user.user_id,
+                "user_id": get_user_id(user),
                 "username": user.username,
-                "user_type": user.user_type
+                "user_type": get_user_type(user)
             })
             expires_in = 30 * 60  # 30 minutes in seconds
         
@@ -362,18 +380,16 @@ async def check_2fa_status(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = db.query(User).filter(User.user_id == payload.get("user_id")).first()
+        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
         # Check if user has 2FA enabled (only for students)
-        has_2fa = (user.totp_secret is not None and 
-                   user.totp_secret != "" and 
-                   user.user_type == "student")
+        user_has_2fa = has_2fa(user)
         
         return {
-            "has_2fa": has_2fa,
-            "user_type": user.user_type,
+            "has_2fa": user_has_2fa,
+            "user_type": get_user_type(user),
             "username": user.username
         }
     except Exception as e:
@@ -393,31 +409,29 @@ async def login_no_2fa(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = db.query(User).filter(User.user_id == payload.get("user_id")).first()
+        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
         # Check if user has 2FA disabled
         # Only students with 2FA enabled are restricted from this endpoint
-        if (user.user_type == "student" and 
-            user.totp_secret is not None and 
-            user.totp_secret != ""):
+        if (get_user_type(user) == "student" and has_2fa(user)):
             raise HTTPException(status_code=400, detail="User has 2FA enabled, cannot use this endpoint")
         
         # Generate access token with different expiration based on user type
         from datetime import timedelta
-        if user.user_type == "teacher":
+        if get_user_type(user) == "teacher":
             access_token = create_access_token({
-                "user_id": user.user_id,
+                "user_id": get_user_id(user),
                 "username": user.username,
-                "user_type": user.user_type
+                "user_type": get_user_type(user)
             }, expires_delta=timedelta(hours=2))
             expires_in = 2 * 3600
         else:
             access_token = create_access_token({
-                "user_id": user.user_id,
+                "user_id": get_user_id(user),
                 "username": user.username,
-                "user_type": user.user_type
+                "user_type": get_user_type(user)
             })
             expires_in = 30 * 60
         
@@ -477,31 +491,31 @@ async def refresh_access_token(
         if not db_token:
             raise HTTPException(status_code=401, detail="Token revoked or not found")
         
-        user = db.query(User).filter(User.user_id == payload.get("user_id")).first()
+        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
         # For students, verify 2FA
-        if user.user_type == "student":
-            if not verify_totp(user.totp_secret, totp_data.totp_code):
+        if get_user_type(user) == "student":
+            if not verify_totp(get_totp_secret(user), totp_data.totp_code):
                 raise HTTPException(status_code=400, detail="Invalid 2FA code")
         
         # Generate new access token with different expiration based on user type
         from datetime import timedelta
-        if user.user_type == "teacher":
+        if get_user_type(user) == "teacher":
             # Teachers get 2 hours for longer sessions managing courses
             access_token = create_access_token({
-                "user_id": user.user_id,
+                "user_id": get_user_id(user),
                 "username": user.username,
-                "user_type": user.user_type
+                "user_type": get_user_type(user)
             }, expires_delta=timedelta(hours=2))
             expires_in = 2 * 3600  # 2 hours in seconds
         else:
             # Default 30 minutes for students and other user types
             access_token = create_access_token({
-                "user_id": user.user_id,
+                "user_id": get_user_id(user),
                 "username": user.username,
-                "user_type": user.user_type
+                "user_type": get_user_type(user)
             })
             expires_in = 30 * 60  # 30 minutes in seconds
         
@@ -540,17 +554,17 @@ async def get_user_info(
                 created_at=admin.created_at
             )
         else:
-            # Look up regular user
-            user = db.query(User).filter(User.user_id == user_id).first()
+            # Look up regular user using auth_helpers
+            user = get_user_by_id(db, user_id, user_type)
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             
             # Return UserResponse
             return UserResponse(
-                user_id=user.user_id,
+                user_id=get_user_id(user),
                 username=user.username,
-                user_type=user.user_type,
-                is_active=user.is_active,
+                user_type=get_user_type(user),
+                is_active=is_active(user),
                 created_at=user.created_at
             )
     except Exception as e:
@@ -640,7 +654,7 @@ async def generate_reset_code_endpoint(
 ):
     """Generate 2FA reset code (admin only)"""
     # Find user
-    user = db.query(User).filter(User.username == reset_data.username).first()
+    user = get_user_by_username(db, reset_data.username)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -649,7 +663,7 @@ async def generate_reset_code_endpoint(
     
     db_code = ResetCode(
         code=code,
-        user_id=user.user_id,
+        user_id=get_user_id(user),
         created_by=current_admin.admin_id,
         expires_at=expires_at
     )
@@ -680,8 +694,8 @@ async def reset_2fa(
     if not db_code:
         raise HTTPException(status_code=400, detail="Invalid or expired reset code")
     
-    # Get user
-    user = db.query(User).filter(User.user_id == db_code.user_id).first()
+    # Get user using the user_id from the reset code
+    user = get_user_by_id(db, db_code.user_id, "student")  # Only students have reset codes
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -692,8 +706,8 @@ async def reset_2fa(
     if not verify_totp(new_secret, new_totp_code):
         raise HTTPException(status_code=400, detail="Invalid 2FA code")
     
-    # Update user's TOTP secret
-    user.totp_secret = new_secret
+    # Update user's TOTP secret using auth_helpers
+    set_totp_secret(user, new_secret)
     db_code.is_used = True
     db.commit()
     
@@ -720,53 +734,57 @@ async def list_users(
     db: Session = Depends(get_db)
 ):
     """List all users (admin only)"""
-    query_users = db.query(User)
-    query_admins = db.query(Admin)
+    # This endpoint now needs to handle separate tables for students and teachers
+    students_list = []
+    teachers_list = []
+    admins_list = []
     
-    # Apply filters
-    if user_type:
-        if user_type == "admin":
-            query_users = query_users.filter(User.user_id == -1)  # No match
-        else:
-            query_users = query_users.filter(User.user_type == user_type)
-            query_admins = query_admins.filter(Admin.admin_id == -1)  # No match
-    
-    if search:
-        query_users = query_users.filter(User.username.contains(search))
-        query_admins = query_admins.filter(Admin.username.contains(search))
-    
-    # Get total count
-    total_users = query_users.count()
-    total_admins = query_admins.count() if not user_type or user_type == "admin" else 0
-    total = total_users + total_admins
-    
-    # Pagination
-    offset = (page - 1) * page_size
-    users_list = []
-    
-    # Get users
-    if not user_type or user_type != "admin":
-        db_users = query_users.order_by(User.created_at.desc()).offset(offset).limit(page_size).all()
-        for user in db_users:
-            users_list.append({
-                "user_id": user.user_id,
-                "username": user.username,
-                "user_type": user.user_type,
-                "is_active": user.is_active,
-                "totp_secret": user.totp_secret if user.user_type == "student" else None,
-                "created_at": user.created_at.isoformat() if user.created_at else None,
-                "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+    # Query students if needed
+    if not user_type or user_type == "student":
+        query_students = db.query(Student)
+        if search:
+            query_students = query_students.filter(Student.username.contains(search))
+        total_students = query_students.count()
+        db_students = query_students.order_by(Student.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
+        for student in db_students:
+            students_list.append({
+                "user_id": student.student_id,
+                "username": student.username,
+                "user_type": "student",
+                "is_active": student.is_active,
+                "totp_secret": student.totp_secret if student.totp_secret else None,
+                "created_at": student.created_at.isoformat() if student.created_at else None,
+                "updated_at": student.updated_at.isoformat() if student.updated_at else None,
             })
     
-    # Get admins if needed
-    remaining = page_size - len(users_list)
-    if remaining > 0 and (not user_type or user_type == "admin"):
-        admin_offset = max(0, offset - total_users)
-        db_admins = query_admins.order_by(Admin.created_at.desc()).offset(admin_offset).limit(remaining).all()
+    # Query teachers if needed
+    if not user_type or user_type == "teacher":
+        query_teachers = db.query(Teacher)
+        if search:
+            query_teachers = query_teachers.filter(Teacher.username.contains(search))
+        total_teachers = query_teachers.count()
+        db_teachers = query_teachers.order_by(Teacher.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
+        for teacher in db_teachers:
+            teachers_list.append({
+                "user_id": teacher.teacher_id,
+                "username": teacher.username,
+                "user_type": "teacher",
+                "is_active": teacher.is_active,
+                "totp_secret": None,  # Teachers don't have 2FA
+                "created_at": teacher.created_at.isoformat() if teacher.created_at else None,
+                "updated_at": teacher.updated_at.isoformat() if teacher.updated_at else None,
+            })
+    
+    # Query admins if needed
+    if not user_type or user_type == "admin":
+        query_admins = db.query(Admin)
+        if search:
+            query_admins = query_admins.filter(Admin.username.contains(search))
+        total_admins = query_admins.count()
+        db_admins = query_admins.order_by(Admin.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
         for admin in db_admins:
-            users_list.append({
-                "user_id": None,
-                "admin_id": admin.admin_id,
+            admins_list.append({
+                "user_id": admin.admin_id,
                 "username": admin.username,
                 "user_type": "admin",
                 "is_active": True,
@@ -775,8 +793,25 @@ async def list_users(
                 "updated_at": None,
             })
     
+    # Combine lists based on user_type filter and pagination
+    all_users = []
+    if user_type == "student":
+        all_users = students_list
+        total = total_students
+    elif user_type == "teacher":
+        all_users = teachers_list
+        total = total_teachers
+    elif user_type == "admin":
+        all_users = admins_list
+        total = total_admins
+    else:
+        # Combine all user types - this is more complex to handle pagination properly
+        # For simplicity, let's implement it as separate queries and combine the results
+        all_users = students_list + teachers_list + admins_list
+        total = total_students + total_teachers + total_admins
+    
     return {
-        "users": users_list,
+        "users": all_users,
         "total": total,
         "page": page,
         "page_size": page_size
@@ -805,7 +840,7 @@ async def add_user_endpoint(
         alphabet = string.ascii_letters + string.digits
         password = ''.join(secrets.choice(alphabet) for _ in range(12))
     
-    # Check if user exists
+    # Check if user exists in the appropriate table
     if user_type == "admin":
         existing = db.query(Admin).filter(Admin.username == username).first()
         if existing:
@@ -818,17 +853,33 @@ async def add_user_endpoint(
         )
         db.add(new_admin)
     else:
-        existing = db.query(User).filter(User.username == username).first()
-        if existing:
+        # Check both student and teacher tables
+        existing_student = db.query(Student).filter(Student.username == username).first()
+        existing_teacher = db.query(Teacher).filter(Teacher.username == username).first()
+        if existing_student or existing_teacher:
             raise HTTPException(status_code=400, detail="User already exists")
         
-        # Create user
-        new_user = User(
-            username=username,
-            password_hash=get_password_hash(password),
-            user_type=user_type,
-            is_active=True
-        )
+        # Create user in the appropriate table
+        if user_type == "student":
+            new_user = Student(
+                username=username,
+                password_hash=get_password_hash(password),
+                student_name=username,  # Set to username initially
+                is_active=True,
+                student_courses=[],
+                student_tags=[]
+            )
+        elif user_type == "teacher":
+            new_user = Teacher(
+                username=username,
+                password_hash=get_password_hash(password),
+                teacher_name=username,  # Set to username initially
+                is_active=True,
+                teacher_courses=[]
+            )
+        else:
+            raise HTTPException(status_code=400, detail="Invalid user type")
+        
         db.add(new_user)
     
     db.commit()
@@ -860,11 +911,18 @@ async def delete_user_endpoint(
         if not admin:
             raise HTTPException(status_code=404, detail="Admin not found")
         db.delete(admin)
+    elif user_type == "student":
+        student = db.query(Student).filter(Student.student_id == user_id).first()
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+        db.delete(student)
+    elif user_type == "teacher":
+        teacher = db.query(Teacher).filter(Teacher.teacher_id == user_id).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Teacher not found")
+        db.delete(teacher)
     else:
-        user = db.query(User).filter(User.user_id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        db.delete(user)
+        raise HTTPException(status_code=400, detail="Invalid user type")
     
     db.commit()
     return {"success": True, "message": "User deleted successfully"}
@@ -881,16 +939,16 @@ async def reset_user_2fa_endpoint(
     if not username:
         raise HTTPException(status_code=400, detail="Username required")
     
-    user = db.query(User).filter(User.username == username).first()
+    user = get_user_by_username(db, username)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Only students and teachers can have 2FA enabled
-    if user.user_type not in ["student", "teacher"]:
-        raise HTTPException(status_code=400, detail="Only students and teachers can have 2FA")
+    # Only students can have 2FA enabled (teachers don't have 2FA)
+    if get_user_type(user) != "student":
+        raise HTTPException(status_code=400, detail="Only students can have 2FA")
     
-    # Reset TOTP secret
-    user.totp_secret = None
+    # Reset TOTP secret using auth_helpers
+    set_totp_secret(user, None)
     db.commit()
     
     return {"success": True, "message": "2FA reset successfully"}
@@ -909,14 +967,21 @@ async def toggle_user_status_endpoint(
     if user_id is None or is_active is None:
         raise HTTPException(status_code=400, detail="user_id and is_active required")
     
-    user = db.query(User).filter(User.user_id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # Determine user type to query the correct table
+    # We'll try each table based on the ID
+    student = db.query(Student).filter(Student.student_id == user_id).first()
+    if student:
+        student.is_active = is_active
+        db.commit()
+        return {"success": True, "message": f"Student {'activated' if is_active else 'deactivated'} successfully"}
     
-    user.is_active = is_active
-    db.commit()
+    teacher = db.query(Teacher).filter(Teacher.teacher_id == user_id).first()
+    if teacher:
+        teacher.is_active = is_active
+        db.commit()
+        return {"success": True, "message": f"Teacher {'activated' if is_active else 'deactivated'} successfully"}
     
-    return {"success": True, "message": f"User {'activated' if is_active else 'deactivated'} successfully"}
+    raise HTTPException(status_code=404, detail="User not found")
 
 
 # Health check
