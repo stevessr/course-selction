@@ -195,27 +195,54 @@ def get_socket_config() -> Dict[str, Any]:
     }
 
 
+def create_dual_server_config(service_name: str, port: int) -> Dict[str, Any]:
+    """
+    Create uvicorn server config that listens on both HTTP and socket
+
+    Args:
+        service_name: Name of service
+        port: HTTP port
+
+    Returns:
+        Config dict for running both HTTP and socket servers
+    """
+    config = get_socket_config()
+    socket_path = Path(config['socket_dir']) / f"{service_name}.sock"
+    socket_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Remove existing socket
+    if socket_path.exists():
+        socket_path.unlink()
+
+    return {
+        'host': '0.0.0.0',
+        'port': port,
+        'uds': str(socket_path),
+        'log_level': 'info',
+    }
+
+
 def create_socket_server_config(service_name: str, port: int) -> Dict[str, Any]:
     """
     Create uvicorn server config with socket support
-    
+
     Args:
         service_name: Name of service
         port: HTTP port (used if sockets disabled)
-    
+
     Returns:
         Config dict for uvicorn
     """
     config = get_socket_config()
-    
+
     if config['use_sockets']:
         socket_path = Path(config['socket_dir']) / f"{service_name}.sock"
         socket_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Remove existing socket
         if socket_path.exists():
             socket_path.unlink()
-        
+
         return {
             'uds': str(socket_path),
             'log_level': 'info',

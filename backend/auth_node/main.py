@@ -388,11 +388,20 @@ async def get_user_info(
     try:
         token = authorization.replace("Bearer ", "")
         payload = await get_current_user_from_token(token)
-        
-        user = db.query(User).filter(User.user_id == payload.get("user_id")).first()
+
+        user_id = payload.get("user_id")
+        user_type = payload.get("user_type")
+
+        if user_type == "admin":
+            # Look up admin user
+            user = db.query(Admin).filter(Admin.admin_id == user_id).first()
+        else:
+            # Look up regular user
+            user = db.query(User).filter(User.user_id == user_id).first()
+
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        
+
         return user
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
