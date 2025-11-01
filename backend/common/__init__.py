@@ -4,7 +4,6 @@ from .models import (
     Course,
     Student,
     Teacher,
-    User,
     Admin,
     RefreshToken,
     RegistrationCode,
@@ -73,6 +72,16 @@ from .utils import (
     get_request_headers,
     call_service_api,
 )
+from .auth_helpers import (
+    get_user_by_username,
+    get_user_by_id,
+    get_user_id,
+    get_user_type,
+    has_2fa,
+    get_totp_secret,
+    set_totp_secret,
+    is_active,
+)
 from .socket_transport import (
     SocketTransport,
     SocketClient,
@@ -87,7 +96,6 @@ __all__ = [
     "Course",
     "Student",
     "Teacher",
-    "User",
     "Admin",
     "RefreshToken",
     "RegistrationCode",
@@ -150,6 +158,15 @@ __all__ = [
     "verify_user_type",
     "get_request_headers",
     "call_service_api",
+    # Auth helpers
+    "get_user_by_username",
+    "get_user_by_id",
+    "get_user_id",
+    "get_user_type",
+    "has_2fa",
+    "get_totp_secret",
+    "set_totp_secret",
+    "is_active",
     # Socket transport
     "SocketTransport",
     "SocketClient",
