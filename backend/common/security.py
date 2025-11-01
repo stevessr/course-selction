@@ -9,7 +9,10 @@ import hashlib
 import os
 
 # Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Prefer pbkdf2_sha256 which doesn't rely on the native bcrypt C extension
+# (avoids issues with broken bcrypt installs). Keep bcrypt_sha256/bcrypt as
+# fallbacks for compatibility.
+pwd_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt_sha256", "bcrypt"], deprecated="auto")
 
 # JWT configuration
 # CRITICAL: Change SECRET_KEY in production via environment variable
@@ -21,12 +24,30 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    # Normalize long passwords to avoid bcrypt 72-byte limitation
+    pw = _normalize_password(plain_password)
+    return pwd_context.verify(pw, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
     """Hash a password"""
-    return pwd_context.hash(password)
+    pw = _normalize_password(password)
+    return pwd_context.hash(pw)
+
+
+def _normalize_password(password: str) -> str:
+    """Ensure the password length is compatible with bcrypt backends.
+
+    If the UTF-8 encoded password exceeds 72 bytes, pre-hash it with SHA-256
+    and return the hex digest (64 chars), which avoids bcrypt's 72-byte limit
+    while remaining deterministic for verify operations.
+    """
+    if not isinstance(password, (bytes, str)):
+        password = str(password)
+    pw_bytes = password.encode() if isinstance(password, str) else password
+    if len(pw_bytes) > 72:
+        return hashlib.sha256(pw_bytes).hexdigest()
+    return password
 
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:

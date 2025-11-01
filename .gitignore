@@ -36,3 +36,5 @@ Thumbs.db
 # Frontend build
 frontend/dist/
 frontend/.vite/
+.backend_pids
+*.lock
