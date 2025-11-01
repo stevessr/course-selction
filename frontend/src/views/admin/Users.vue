@@ -87,7 +87,7 @@
           </template>
 
           <template v-else-if="column.key === 'has_2fa'">
-            <a-tag v-if="record.user_type === 'student'" :color="record.totp_secret ? 'green' : 'orange'">
+            <a-tag v-if="record.user_type === 'student' || record.user_type === 'teacher'" :color="record.totp_secret ? 'green' : 'orange'">
               {{ record.totp_secret ? '已启用' : '未启用' }}
             </a-tag>
             <span v-else>-</span>
@@ -105,7 +105,9 @@
                 </a-button>
               </a-tooltip>
 
-              <a-tooltip v-if="record.user_type === 'student' && record.totp_secret" title="重置2FA">
+              <a-tooltip 
+                v-if="(record.user_type === 'student' || record.user_type === 'teacher') && record.totp_secret" 
+                title="重置2FA">
                 <a-button size="small" @click="reset2FA(record)">
                   <template #icon><KeyOutlined /></template>
                 </a-button>
@@ -252,7 +254,7 @@ bob,pass456,teacher,bob@example.com,Bob Smith</pre>
             :text="selectedUser.is_active ? '活跃' : '已停用'"
           />
         </a-descriptions-item>
-        <a-descriptions-item v-if="selectedUser.user_type === 'student'" label="2FA状态">
+        <a-descriptions-item v-if="selectedUser.user_type === 'student' || selectedUser.user_type === 'teacher'" label="2FA状态">
           <a-tag :color="selectedUser.totp_secret ? 'green' : 'orange'">
             {{ selectedUser.totp_secret ? '已启用' : '未启用' }}
           </a-tag>

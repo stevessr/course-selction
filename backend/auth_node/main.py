@@ -144,8 +144,8 @@ async def register_v1(
     if existing:
         raise HTTPException(status_code=400, detail="Username already exists")
     
-    # Generate 2FA secret
-    totp_secret = generate_totp_secret()
+    # Generate 2FA secret only for students (not for teachers/admins)
+    totp_secret = generate_totp_secret() if user_data.user_type == "student" else None
     
     # Create user
     db_user = User(
@@ -165,14 +165,22 @@ async def register_v1(
         reg_code.used_by = db_user.user_id
         db.commit()
     
-    # Generate refresh token
+    # Revoke any existing refresh tokens for this user (shouldn't exist for new user, but be safe)
+    existing_tokens = db.query(RefreshToken).filter(
+        RefreshToken.user_id == db_user.user_id,
+        RefreshToken.is_revoked == False
+    ).all()
+    for token in existing_tokens:
+        token.is_revoked = True
+    
+    # Generate new refresh token
     refresh_token = create_refresh_token({
         "user_id": db_user.user_id,
         "username": db_user.username,
         "user_type": db_user.user_type
     })
     
-    # Store refresh token
+    # Store new refresh token
     token_hash = hash_token(refresh_token)
     db_token = RefreshToken(
         user_id=db_user.user_id,
@@ -212,9 +220,10 @@ async def register_v2(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Verify TOTP code
-        if not verify_totp(user.totp_secret, totp_data.totp_code):
-            raise HTTPException(status_code=400, detail="Invalid 2FA code")
+        # Verify TOTP code only if user has 2FA enabled
+        if user.totp_secret and user.totp_secret != "":
+            if not verify_totp(user.totp_secret, totp_data.totp_code):
+                raise HTTPException(status_code=400, detail="Invalid 2FA code")
         
         # Generate access token with different expiration based on user type
         from datetime import timedelta
@@ -258,14 +267,22 @@ async def login_v1(
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is inactive")
     
-    # Generate refresh token
+    # Revoke any existing refresh tokens for this user
+    existing_tokens = db.query(RefreshToken).filter(
+        RefreshToken.user_id == user.user_id,
+        RefreshToken.is_revoked == False
+    ).all()
+    for token in existing_tokens:
+        token.is_revoked = True
+    
+    # Generate new refresh token
     refresh_token = create_refresh_token({
         "user_id": user.user_id,
         "username": user.username,
         "user_type": user.user_type
     })
     
-    # Store refresh token
+    # Store new refresh token
     token_hash = hash_token(refresh_token)
     db_token = RefreshToken(
         user_id=user.user_id,
@@ -299,9 +316,10 @@ async def login_v2(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Verify TOTP code
-        if not verify_totp(user.totp_secret, totp_data.totp_code):
-            raise HTTPException(status_code=400, detail="Invalid 2FA code")
+        # Verify TOTP code only if user has 2FA enabled
+        if user.totp_secret and user.totp_secret != "":
+            if not verify_totp(user.totp_secret, totp_data.totp_code):
+                raise HTTPException(status_code=400, detail="Invalid 2FA code")
         
         # Generate access token with different expiration based on user type
         from datetime import timedelta
@@ -348,8 +366,10 @@ async def check_2fa_status(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Check if user has 2FA enabled (totp_secret is not NULL)
-        has_2fa = user.totp_secret is not None and user.totp_secret != ""
+        # Check if user has 2FA enabled (only for students)
+        has_2fa = (user.totp_secret is not None and 
+                   user.totp_secret != "" and 
+                   user.user_type == "student")
         
         return {
             "has_2fa": has_2fa,
@@ -378,7 +398,10 @@ async def login_no_2fa(
             raise HTTPException(status_code=404, detail="User not found")
         
         # Check if user has 2FA disabled
-        if user.totp_secret is not None and user.totp_secret != "":
+        # Only students with 2FA enabled are restricted from this endpoint
+        if (user.user_type == "student" and 
+            user.totp_secret is not None and 
+            user.totp_secret != ""):
             raise HTTPException(status_code=400, detail="User has 2FA enabled, cannot use this endpoint")
         
         # Generate access token with different expiration based on user type
@@ -862,8 +885,9 @@ async def reset_user_2fa_endpoint(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    if user.user_type != "student":
-        raise HTTPException(status_code=400, detail="Only students have 2FA")
+    # Only students and teachers can have 2FA enabled
+    if user.user_type not in ["student", "teacher"]:
+        raise HTTPException(status_code=400, detail="Only students and teachers can have 2FA")
     
     # Reset TOTP secret
     user.totp_secret = None
