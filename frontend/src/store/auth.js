@@ -48,6 +48,53 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function adminLogin(username, password) {
+    try {
+      const response = await authApi.adminLogin(username, password)
+      
+      // Admin login might return different token format than regular login
+      // Check if response has at least access_token
+      if (!response.access_token) {
+        return { success: false, error: 'Invalid response from server - missing access token' }
+      }
+      
+      // Use the refresh_token if available, otherwise use the access_token as both
+      // This might be a temporary solution depending on backend implementation
+      const accessToken = response.access_token
+      const refreshToken = response.refresh_token || response.access_token // fallback if no refresh token
+      
+      setTokens(accessToken, refreshToken)
+      
+      // Fetch user info
+      const userInfo = await authApi.getUserInfo(accessToken)
+      setUser(userInfo)
+      
+      return { success: true }
+    } catch (error) {
+      console.error('Admin login error:', error)
+      let errorMessage = 'Admin login failed'
+      if (error.response) {
+        // Server responded with error status
+        if (error.response.status === 401) {
+          errorMessage = 'Invalid admin credentials'
+        } else if (error.response.status === 403) {
+          errorMessage = 'Access denied - admin privileges required'
+        } else if (error.response.data && error.response.data.detail) {
+          errorMessage = error.response.data.detail
+        } else {
+          errorMessage = `Server error: ${error.response.status}`
+        }
+      } else if (error.request) {
+        // Request was made but no response received
+        errorMessage = 'Network error - unable to reach server'
+      } else {
+        // Something else happened
+        errorMessage = error.message || 'An unexpected error occurred'
+      }
+      return { success: false, error: errorMessage }
+    }
+  }
+
   async function verify2FA(totpCode) {
     try {
       const response = await authApi.loginV2(refreshToken.value, totpCode)
@@ -133,6 +180,7 @@ export const useAuthStore = defineStore('auth', () => {
     userType,
     username,
     login,
+    adminLogin,
     verify2FA,
     register,
     completeRegistration,

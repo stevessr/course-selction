@@ -71,9 +71,14 @@ const loading = ref(false)
 const handleLogin = async () => {
   loading.value = true
   try {
-    await authStore.adminLogin(loginForm.value.username, loginForm.value.password)
-    message.success('Admin login successful')
-    router.push('/admin/users')
+    const result = await authStore.adminLogin(loginForm.value.username, loginForm.value.password)
+    
+    if (result.success) {
+      message.success('Admin login successful')
+      router.push('/admin/users')
+    } else {
+      message.error(result.error || 'Admin login failed')
+    }
   } catch (error) {
     message.error(error.message || 'Admin login failed')
   } finally {
