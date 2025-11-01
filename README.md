@@ -25,14 +25,16 @@ A comprehensive student course selection system built with FastAPI (Python) back
 - Refresh token + access token mechanism / 刷新令牌 + 访问令牌机制
 - SQLite database with master-slave replication support / SQLite 数据库支持主从复制
 - Role-based access control (Student, Teacher, Admin) / 基于角色的访问控制（学生、教师、管理员）
+- **Dual HTTP + Socket communication / 双重 HTTP + Socket 通信** ✨ NEW
+- **Separated API interfaces by role / 按角色分离的 API 接口** ✨ NEW
 - **CLI tool for user management / CLI 用户管理工具** ✨
 - **Socket communication for performance / Socket 通信优化性能** ✨
 - **CSV user import / CSV 用户导入** ✨
 - **Random user generation / 随机用户生成** ✨
 - **Complete test suite / 完整测试套件** ✨
 - **DevContainer support / DevContainer 支持** ✨
-- **Debug panel for runtime error tracking / 运行时错误跟踪调试面板** ✨ NEW
-- **Database editor CLI tool / 数据库编辑命令行工具** ✨ NEW
+- **Debug panel with floating button / 浮动按钮调试面板** ✨ NEW
+- **Database editor CLI tool / 数据库编辑命令行工具** ✨
 
 ## Project Structure
 
@@ -67,6 +69,8 @@ For user guide, see [USER_GUIDE.md](USER_GUIDE.md)
 
 **For debug panel and database editor, see [DEBUG_DB_GUIDE.md](DEBUG_DB_GUIDE.md)** ✨ NEW
 
+**For dual HTTP + socket communication, see [DUAL_MODE_GUIDE.md](DUAL_MODE_GUIDE.md)** ✨ NEW
+
 详细的安装说明请参阅 [SETUP.md](SETUP.md)
 
 开发者指南请参阅 [DEVELOPER.md](DEVELOPER.md)
@@ -74,6 +78,8 @@ For user guide, see [USER_GUIDE.md](USER_GUIDE.md)
 用户指南请参阅 [USER_GUIDE.md](USER_GUIDE.md)
 
 **调试面板和数据库编辑器指南请参阅 [DEBUG_DB_GUIDE.md](DEBUG_DB_GUIDE.md)** ✨ 新功能
+
+**双重 HTTP + Socket 通信指南请参阅 [DUAL_MODE_GUIDE.md](DUAL_MODE_GUIDE.md)** ✨ 新功能
 
 ### Option 1: DevContainer (Recommended) / 使用 DevContainer（推荐）
 
@@ -189,6 +195,31 @@ course-cli status
 ```
 
 See [CLI_SOCKET_GUIDE.md](CLI_SOCKET_GUIDE.md) for complete CLI documentation.
+
+### Database Editor CLI Tool / 数据库编辑 CLI 工具 ✨
+
+Direct database manipulation with full administrative permissions:
+
+```bash
+# List all tables
+course-db-edit list-tables -d data
+
+# Query records
+course-db-edit query -d data -t courses -l 10
+
+# Insert record
+course-db-edit insert-record -d data -t courses -v '{"course_name":"New Course",...}'
+
+# Update records
+course-db-edit update-record -d data -t courses -w '{"course_id":1}' -v '{"course_capacity":150}'
+
+# Delete records (with confirmation)
+course-db-edit delete-record -d auth -t refresh_tokens -w '{"is_revoked":true}'
+```
+
+⚠️ **WARNING**: This tool bypasses all application validation. Use with caution!
+
+See [DEBUG_DB_GUIDE.md](DEBUG_DB_GUIDE.md) for complete documentation.
 
 ### Socket Communication for Performance / Socket 通信优化性能 ✨
 
@@ -326,7 +357,51 @@ export USE_SOCKETS=true           # Enable sockets (default in dev)
 ```
 
 ### Feature Summary / 功能总结
-Complete implementation details and benchmarks in [FEATURE_SUMMARY.md](FEATURE_SUMMARY.md).
+Complete implementation details and benchmarks in [FEATURE_SUMMARY.md](FEATURE_SUMMARY.md) and [DUAL_MODE_GUIDE.md](DUAL_MODE_GUIDE.md).
+
+## What's New / 最新功能 ✨
+
+### Version 2.0 - Dual Mode & Enhanced UI
+
+**1. Dual HTTP + Socket Communication**
+- Services listen on both HTTP and Unix sockets simultaneously
+- Frontend uses HTTP for maximum compatibility
+- Backend services use sockets for 2-3x performance boost
+- Zero configuration needed - works out of the box
+- See [DUAL_MODE_GUIDE.md](DUAL_MODE_GUIDE.md)
+
+**2. Separated API Interfaces by Role**
+- **Admin endpoints**: `/login/admin`, `/add/admin`, `/generate/*`
+- **Teacher endpoints**: `/teacher/*` (courses, students, stats)
+- **Student endpoints**: `/student/*` (selection, schedule, queue)
+- Clear role boundaries for better security
+
+**3. Debug Panel with Floating Button**
+- Click floating button (bottom-right corner) to open debug panel
+- Real-time error capture and network monitoring
+- Integrated with Ant Design's color system
+- Keyboard shortcut (Ctrl+Shift+D) for power users
+- Automatically adapts to application theme
+
+**4. Database Editor CLI**
+- Full administrative access: `course-db-edit`
+- Direct database manipulation (bypasses app logic)
+- Safety confirmations for destructive operations
+- Works with all 3 databases (data, auth, queue)
+- See [DEBUG_DB_GUIDE.md](DEBUG_DB_GUIDE.md)
+
+**5. Unified Theme System**
+- All components use Ant Design's design tokens
+- Consistent colors and spacing throughout
+- Better accessibility and visual coherence
+- Easy customization via theme configuration
+
+### Version 1.5 - Developer Tools
+- CLI tool for user management (`course-cli`)
+- CSV user import and random user generation
+- Complete test suite (unit, integration, system)
+- DevContainer for one-click development setup
+- 12 comprehensive documentation guides
 
 ## License
 
