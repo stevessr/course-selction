@@ -13,6 +13,24 @@ const routes = [
     meta: { requiresAuth: false },
   },
   {
+    path: '/login/student',
+    name: 'LoginStudent',
+    component: () => import('@/views/LoginStudent.vue'),
+    meta: { requiresAuth: false },
+  },
+  {
+    path: '/login/teacher',
+    name: 'LoginTeacher',
+    component: () => import('@/views/LoginTeacher.vue'),
+    meta: { requiresAuth: false },
+  },
+  {
+    path: '/login/admin',
+    name: 'LoginAdmin',
+    component: () => import('@/views/LoginAdmin.vue'),
+    meta: { requiresAuth: false },
+  },
+  {
     path: '/register',
     name: 'Register',
     component: () => import('@/views/Register.vue'),

@@ -8,7 +8,7 @@ import os
 
 from backend.common import (
     Base, User, Admin, RefreshToken, RegistrationCode, ResetCode,
-    UserCreate, UserLogin, User2FA, UserResponse,
+    UserCreate, UserLogin, User2FA, UserResponse, AdminResponse,
     AdminCreate, AdminLogin,
     RegistrationCodeCreate, RegistrationCodeResponse,
     ResetCodeCreate, ResetCodeResponse,
@@ -379,7 +379,7 @@ async def refresh_access_token(
         raise HTTPException(status_code=401, detail=str(e))
 
 
-@app.get("/get/user", response_model=UserResponse)
+@app.get("/get/user")
 async def get_user_info(
     authorization: str = Header(..., alias="Authorization"),
     db: Session = Depends(get_db)
@@ -394,15 +394,30 @@ async def get_user_info(
 
         if user_type == "admin":
             # Look up admin user
-            user = db.query(Admin).filter(Admin.admin_id == user_id).first()
+            admin = db.query(Admin).filter(Admin.admin_id == user_id).first()
+            if not admin:
+                raise HTTPException(status_code=404, detail="Admin not found")
+            
+            # Return AdminResponse
+            return AdminResponse(
+                admin_id=admin.admin_id,
+                username=admin.username,
+                created_at=admin.created_at
+            )
         else:
             # Look up regular user
             user = db.query(User).filter(User.user_id == user_id).first()
-
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        return user
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            # Return UserResponse
+            return UserResponse(
+                user_id=user.user_id,
+                username=user.username,
+                user_type=user.user_type,
+                is_active=user.is_active,
+                created_at=user.created_at
+            )
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
 

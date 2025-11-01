@@ -102,6 +102,17 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
+class AdminResponse(BaseModel):
+    admin_id: int
+    username: str
+    user_type: str = "admin"  # Always admin
+    is_active: bool = True  # Admins are always active
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # Token schemas
 class TokenResponse(BaseModel):
     token: str
