@@ -81,6 +81,21 @@ const authApi = {
       new_totp_code: newTotpCode,
     })
   },
+
+  // Check 2FA status
+  check2FAStatus(refreshToken) {
+    return api.get('/auth/check/2fa-status',
+      { headers: { Authorization: `Bearer ${refreshToken}` } }
+    )
+  },
+
+  // Login without 2FA (for disabled 2FA users)
+  loginNo2FA(refreshToken) {
+    return api.post('/auth/login/no-2fa',
+      {},
+      { headers: { Authorization: `Bearer ${refreshToken}` } }
+    )
+  },
 }
 
 export default authApi

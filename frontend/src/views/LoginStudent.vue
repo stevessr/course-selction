@@ -8,7 +8,7 @@
         </div>
       </template>
       
-      <!-- Phase 1: Username & Password -->
+      <!-- Phase 1: Username & Password (only shown when no valid refresh token) -->
       <a-form
         v-if="!needsTwoFactor"
         :model="loginForm"
@@ -45,7 +45,7 @@
         </a-form-item>
       </a-form>
 
-      <!-- Phase 2: 2FA Verification -->
+      <!-- Phase 2: 2FA Verification (shown when refresh token exists) -->
       <a-form v-else :model="twoFactorForm" @finish="handleTwoFactor" layout="vertical">
         <a-alert
           message="Two-Factor Authentication Required"
@@ -75,17 +75,64 @@
         </a-form-item>
 
         <a-form-item>
-          <a-button type="link" block @click="cancelTwoFactor">
-            Cancel
-          </a-button>
+          <a-space direction="vertical" style="width: 100%">
+            <a-button type="link" block @click="showResetModal">
+              Reset 2FA
+            </a-button>
+            <a-button type="link" block @click="cancelTwoFactor">
+              Cancel / Use Different Account
+            </a-button>
+          </a-space>
         </a-form-item>
       </a-form>
     </a-card>
+
+    <!-- 2FA Reset Modal -->
+    <a-modal
+      v-model:open="resetModalVisible"
+      title="Reset 2FA"
+      @ok="handleReset2FA"
+      :confirmLoading="resetting"
+    >
+      <a-alert
+        message="2FA Reset Process"
+        description="To reset your 2FA, you need a reset code from an administrator and access to your new authenticator app."
+        type="info"
+        show-icon
+        style="margin-bottom: 16px"
+      />
+      
+      <a-form layout="vertical">
+        <a-form-item label="Reset Code" required>
+          <a-input
+            v-model:value="resetForm.resetCode"
+            placeholder="Enter 8-character reset code"
+            maxlength="8"
+            size="large"
+          />
+          <div style="margin-top: 4px; font-size: 12px; color: #888;">
+            Request a reset code from your administrator
+          </div>
+        </a-form-item>
+
+        <a-form-item label="New 2FA Code" required>
+          <a-input
+            v-model:value="resetForm.newTotpCode"
+            placeholder="000000"
+            maxlength="6"
+            size="large"
+          />
+          <div style="margin-top: 4px; font-size: 12px; color: #888;">
+            Enter the 6-digit code from your NEW authenticator app
+          </div>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { BookOutlined } from '@ant-design/icons-vue'
@@ -103,15 +150,77 @@ const twoFactorForm = ref({
   totpCode: '',
 })
 
+const resetForm = ref({
+  resetCode: '',
+  newTotpCode: '',
+})
+
 const loading = ref(false)
 const needsTwoFactor = ref(false)
+const resetModalVisible = ref(false)
+const resetting = ref(false)
+
+// Check if we have a valid refresh token on mount
+onMounted(async () => {
+  if (authStore.refreshToken) {
+    // We have a refresh token, check 2FA status
+    const statusResult = await authStore.check2FAStatus()
+    
+    if (statusResult.success) {
+      if (statusResult.has_2fa) {
+        // User has 2FA enabled, show 2FA screen
+        needsTwoFactor.value = true
+      } else {
+        // User has 2FA disabled, login directly
+        loading.value = true
+        try {
+          const result = await authStore.loginNo2FA()
+          if (result.success) {
+            message.success('Login successful')
+            router.push('/student/courses')
+          } else {
+            message.error(result.error || 'Login failed')
+            // Clear tokens and show login form
+            authStore.setTokens(null, null)
+            needsTwoFactor.value = false
+          }
+        } catch (error) {
+          message.error(error.message || 'Login failed')
+          authStore.setTokens(null, null)
+          needsTwoFactor.value = false
+        } finally {
+          loading.value = false
+        }
+      }
+    } else {
+      // Invalid token or error, clear it and show login form
+      authStore.setTokens(null, null)
+      needsTwoFactor.value = false
+    }
+  }
+})
 
 const handleLogin = async () => {
   loading.value = true
   try {
     const result = await authStore.login(loginForm.value.username, loginForm.value.password)
     if (result.success) {
-      needsTwoFactor.value = true
+      // Check if user has 2FA enabled
+      const statusResult = await authStore.check2FAStatus()
+      
+      if (statusResult.success && !statusResult.has_2fa) {
+        // 2FA is disabled, login directly
+        const loginResult = await authStore.loginNo2FA()
+        if (loginResult.success) {
+          message.success('Login successful')
+          router.push('/student/courses')
+        } else {
+          message.error(loginResult.error || 'Login failed')
+        }
+      } else {
+        // 2FA is enabled, show 2FA screen
+        needsTwoFactor.value = true
+      }
     } else {
       message.error(result.error || 'Login failed')
     }
@@ -136,9 +245,57 @@ const handleTwoFactor = async () => {
 }
 
 const cancelTwoFactor = () => {
+  // Clear tokens and return to username/password login
+  authStore.setTokens(null, null)
   needsTwoFactor.value = false
   loginForm.value = { username: '', password: '' }
   twoFactorForm.value = { totpCode: '' }
+}
+
+const showResetModal = () => {
+  resetModalVisible.value = true
+  resetForm.value = { resetCode: '', newTotpCode: '' }
+}
+
+const handleReset2FA = async () => {
+  if (!resetForm.value.resetCode || !resetForm.value.newTotpCode) {
+    message.error('Please fill in all fields')
+    return
+  }
+
+  if (resetForm.value.resetCode.length !== 8) {
+    message.error('Reset code must be 8 characters')
+    return
+  }
+
+  if (resetForm.value.newTotpCode.length !== 6) {
+    message.error('2FA code must be 6 digits')
+    return
+  }
+
+  resetting.value = true
+  try {
+    const result = await authStore.reset2FAWithCode(
+      resetForm.value.resetCode,
+      resetForm.value.newTotpCode
+    )
+    
+    if (result.success) {
+      message.success('2FA reset successful! Please login with your new 2FA code.')
+      resetModalVisible.value = false
+      // Clear current session and return to login
+      authStore.setTokens(null, null)
+      needsTwoFactor.value = false
+      loginForm.value = { username: '', password: '' }
+      twoFactorForm.value = { totpCode: '' }
+    } else {
+      message.error(result.error || '2FA reset failed')
+    }
+  } catch (error) {
+    message.error(error.message || '2FA reset failed')
+  } finally {
+    resetting.value = false
+  }
 }
 </script>
 

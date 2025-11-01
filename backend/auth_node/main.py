@@ -331,6 +331,82 @@ async def login_v2(
         raise HTTPException(status_code=401, detail=str(e))
 
 
+@app.get("/check/2fa-status")
+async def check_2fa_status(
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db)
+):
+    """Check if user has 2FA enabled"""
+    try:
+        refresh_token = authorization.replace("Bearer ", "")
+        payload = decode_token(refresh_token)
+        
+        if not payload or payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+        user = db.query(User).filter(User.user_id == payload.get("user_id")).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Check if user has 2FA enabled (totp_secret is not NULL)
+        has_2fa = user.totp_secret is not None and user.totp_secret != ""
+        
+        return {
+            "has_2fa": has_2fa,
+            "user_type": user.user_type,
+            "username": user.username
+        }
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
+@app.post("/login/no-2fa", response_model=AccessTokenResponse)
+async def login_no_2fa(
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db)
+):
+    """Login without 2FA for users who have 2FA disabled"""
+    try:
+        refresh_token = authorization.replace("Bearer ", "")
+        payload = decode_token(refresh_token)
+        
+        if not payload or payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+        user = db.query(User).filter(User.user_id == payload.get("user_id")).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Check if user has 2FA disabled
+        if user.totp_secret is not None and user.totp_secret != "":
+            raise HTTPException(status_code=400, detail="User has 2FA enabled, cannot use this endpoint")
+        
+        # Generate access token with different expiration based on user type
+        from datetime import timedelta
+        if user.user_type == "teacher":
+            access_token = create_access_token({
+                "user_id": user.user_id,
+                "username": user.username,
+                "user_type": user.user_type
+            }, expires_delta=timedelta(hours=2))
+            expires_in = 2 * 3600
+        else:
+            access_token = create_access_token({
+                "user_id": user.user_id,
+                "username": user.username,
+                "user_type": user.user_type
+            })
+            expires_in = 30 * 60
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": expires_in
+        }
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
 @app.post("/logout")
 async def logout(
     authorization: str = Header(..., alias="Authorization"),

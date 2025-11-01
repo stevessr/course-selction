@@ -170,6 +170,39 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function check2FAStatus() {
+    try {
+      const response = await authApi.check2FAStatus(refreshToken.value)
+      return { success: true, ...response }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  }
+
+  async function loginNo2FA() {
+    try {
+      const response = await authApi.loginNo2FA(refreshToken.value)
+      setTokens(response.access_token, refreshToken.value)
+      
+      // Fetch user info
+      const userInfo = await authApi.getUserInfo(response.access_token)
+      setUser(userInfo)
+      
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  }
+
+  async function reset2FAWithCode(resetCode, newTotpCode) {
+    try {
+      await authApi.reset2FA(resetCode, newTotpCode)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  }
+
   function restoreSession() {
     // Session is automatically restored from localStorage in the initial refs
     // This function can be used for additional validation if needed
@@ -191,6 +224,9 @@ export const useAuthStore = defineStore('auth', () => {
     completeRegistration,
     logout,
     refreshAccessToken,
+    check2FAStatus,
+    loginNo2FA,
+    reset2FAWithCode,
     restoreSession,
     // expose internal helpers for UI code
     setTokens,
