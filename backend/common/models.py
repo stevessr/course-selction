@@ -1,7 +1,7 @@
 """Common database models used across services"""
 from sqlalchemy import Column, Integer, String, JSON, DateTime, Boolean
 from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Separate base classes for different service databases
 DataBase = declarative_base()  # For data_node: courses, students, teachers
@@ -37,8 +37,8 @@ class Course(DataBase):
     course_cost = Column(Integer, default=0)  # 0 for free courses
     is_active = Column(Boolean, default=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class Student(DataBase):
@@ -53,8 +53,8 @@ class Student(DataBase):
     student_tags = Column(JSON, default=list)  # Tags for course enrollment eligibility
     totp_secret = Column(String(32))  # For 2FA (students only)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class Teacher(DataBase):
@@ -67,8 +67,8 @@ class Teacher(DataBase):
     teacher_name = Column(String(100), nullable=False)
     teacher_courses = Column(JSON, default=list)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class Admin(AuthBase):
@@ -78,7 +78,7 @@ class Admin(AuthBase):
     admin_id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(100), nullable=False, unique=True)
     password_hash = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class RefreshToken(AuthBase):
@@ -90,7 +90,7 @@ class RefreshToken(AuthBase):
     token_hash = Column(String(255), nullable=False, unique=True)
     expires_at = Column(DateTime, nullable=False)
     is_revoked = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class RegistrationCode(AuthBase):
@@ -103,7 +103,7 @@ class RegistrationCode(AuthBase):
     is_used = Column(Boolean, default=False)
     used_by = Column(Integer)
     created_by = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime, nullable=False)
 
 
@@ -116,7 +116,7 @@ class ResetCode(AuthBase):
     user_id = Column(Integer, nullable=False)
     is_used = Column(Boolean, default=False)
     created_by = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime, nullable=False)
 
 
@@ -135,6 +135,6 @@ class QueueTask(QueueBase):
     priority = Column(Integer, default=0)
     error_message = Column(String(500))
     retry_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     started_at = Column(DateTime)
     completed_at = Column(DateTime)

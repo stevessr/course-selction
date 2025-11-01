@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 import httpx
 
@@ -75,7 +75,7 @@ async def process_task(task_id: str):
         
         # Update task status to processing
         task.status = "processing"
-        task.started_at = datetime.utcnow()
+        task.started_at = datetime.now(timezone.utc)
         db.commit()
         
         # Call data node API
@@ -94,11 +94,11 @@ async def process_task(task_id: str):
             
             if response.status_code == 200:
                 task.status = "completed"
-                task.completed_at = datetime.utcnow()
+                task.completed_at = datetime.now(timezone.utc)
             else:
                 task.status = "failed"
                 task.error_message = response.text
-                task.completed_at = datetime.utcnow()
+                task.completed_at = datetime.now(timezone.utc)
                 task.retry_count += 1
         
         db.commit()
@@ -107,7 +107,7 @@ async def process_task(task_id: str):
         if task:
             task.status = "failed"
             task.error_message = str(e)
-            task.completed_at = datetime.utcnow()
+            task.completed_at = datetime.now(timezone.utc)
             task.retry_count += 1
             db.commit()
     finally:
@@ -233,7 +233,7 @@ async def cancel_task(
     
     task.status = "failed"
     task.error_message = "Cancelled by user"
-    task.completed_at = datetime.utcnow()
+    task.completed_at = datetime.now(timezone.utc)
     db.commit()
     
     return {"success": True, "message": "Task cancelled successfully"}
@@ -248,7 +248,7 @@ async def get_queue_stats(
     if internal_token != INTERNAL_TOKEN:
         raise HTTPException(status_code=403, detail="Invalid internal token")
     
-    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     
     pending_tasks = db.query(QueueTask).filter(QueueTask.status == "pending").count()
     processing_tasks = db.query(QueueTask).filter(QueueTask.status == "processing").count()

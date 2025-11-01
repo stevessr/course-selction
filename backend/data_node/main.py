@@ -2,9 +2,10 @@
 from fastapi import FastAPI, HTTPException, Depends, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+from pydantic import BaseModel
 
 from backend.common import (
     DataBase, Course, Student, Teacher,
@@ -109,7 +110,7 @@ async def update_course(
     for field, value in update_data.items():
         setattr(db_course, field, value)
     
-    db_course.updated_at = datetime.utcnow()
+    db_course.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(db_course)
     
@@ -219,6 +220,49 @@ async def add_student(
     return db_student
 
 
+# Extended student endpoints for registration with auth details
+class StudentWithAuth(BaseModel):
+    """Student model with authentication details - for internal use only"""
+    username: str
+    password_hash: str
+    student_name: str
+    totp_secret: Optional[str] = None
+    is_active: bool = True
+    student_courses: List[int] = []
+    student_tags: List[str] = []
+
+
+@app.post("/add/student-with-auth", response_model=StudentResponse, status_code=status.HTTP_201_CREATED)
+async def add_student_with_auth(
+    student_data: StudentWithAuth,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_internal_token_header)
+):
+    """Add a new student with authentication details (internal use only)"""
+    # Check if student already exists by username
+    existing = db.query(Student).filter(
+        (Student.username == student_data.username) |
+        (Student.student_name == student_data.student_name)
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Student already exists")
+    
+    db_student = Student(
+        username=student_data.username,
+        password_hash=student_data.password_hash,
+        student_name=student_data.student_name,
+        totp_secret=student_data.totp_secret,
+        is_active=student_data.is_active,
+        student_courses=student_data.student_courses,
+        student_tags=student_data.student_tags
+    )
+    
+    db.add(db_student)
+    db.commit()
+    db.refresh(db_student)
+    return db_student
+
+
 @app.post("/update/student", response_model=StudentResponse)
 async def update_student(
     student_id: int,
@@ -232,7 +276,7 @@ async def update_student(
         raise HTTPException(status_code=404, detail="Student not found")
     
     db_student.student_name = student_name
-    db_student.updated_at = datetime.utcnow()
+    db_student.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(db_student)
     return db_student
@@ -292,6 +336,45 @@ async def add_teacher(
     return db_teacher
 
 
+# Extended teacher endpoint for registration with auth details
+class TeacherWithAuth(BaseModel):
+    """Teacher model with authentication details - for internal use only"""
+    username: str
+    password_hash: str
+    teacher_name: str
+    is_active: bool = True
+    teacher_courses: List[int] = []
+
+
+@app.post("/add/teacher-with-auth", response_model=TeacherResponse, status_code=status.HTTP_201_CREATED)
+async def add_teacher_with_auth(
+    teacher_data: TeacherWithAuth,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_internal_token_header)
+):
+    """Add a new teacher with authentication details (internal use only)"""
+    # Check if teacher already exists by username
+    existing = db.query(Teacher).filter(
+        (Teacher.username == teacher_data.username) |
+        (Teacher.teacher_name == teacher_data.teacher_name)
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Teacher already exists")
+    
+    db_teacher = Teacher(
+        username=teacher_data.username,
+        password_hash=teacher_data.password_hash,
+        teacher_name=teacher_data.teacher_name,
+        is_active=teacher_data.is_active,
+        teacher_courses=teacher_data.teacher_courses
+    )
+    
+    db.add(db_teacher)
+    db.commit()
+    db.refresh(db_teacher)
+    return db_teacher
+
+
 @app.post("/update/teacher", response_model=TeacherResponse)
 async def update_teacher(
     teacher_id: int,
@@ -305,7 +388,7 @@ async def update_teacher(
         raise HTTPException(status_code=404, detail="Teacher not found")
     
     db_teacher.teacher_name = teacher_name
-    db_teacher.updated_at = datetime.utcnow()
+    db_teacher.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(db_teacher)
     return db_teacher
@@ -376,11 +459,11 @@ async def select_course(
     # Add course to student
     student_courses.append(course_id)
     student.student_courses = student_courses
-    student.updated_at = datetime.utcnow()
+    student.updated_at = datetime.now(timezone.utc)
     
     # Increment course selection count
     course.course_selected += 1
-    course.updated_at = datetime.utcnow()
+    course.updated_at = datetime.now(timezone.utc)
     
     db.commit()
     return {"success": True, "message": "Course selected successfully"}
@@ -410,11 +493,11 @@ async def deselect_course(
     # Remove course from student
     student_courses.remove(course_id)
     student.student_courses = student_courses
-    student.updated_at = datetime.utcnow()
+    student.updated_at = datetime.now(timezone.utc)
     
     # Decrement course selection count
     course.course_selected = max(0, course.course_selected - 1)
-    course.updated_at = datetime.utcnow()
+    course.updated_at = datetime.now(timezone.utc)
     
     db.commit()
     return {"success": True, "message": "Course deselected successfully"}

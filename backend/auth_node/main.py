@@ -2,7 +2,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import os
 import httpx
@@ -132,7 +132,7 @@ async def register_v1(
         reg_code = db.query(RegistrationCode).filter(
             RegistrationCode.code == user_data.registration_code,
             RegistrationCode.is_used == False,
-            RegistrationCode.expires_at > datetime.utcnow()
+            RegistrationCode.expires_at > datetime.now(timezone.utc)
         ).first()
         
         if not reg_code:
@@ -145,48 +145,86 @@ async def register_v1(
         pass
     
     # Check if user already exists in the appropriate table
-    existing_user = get_user_by_username(db, user_data.username)
+    existing_user = await get_user_by_username(db, user_data.username)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    
+    # Check if user already exists in the appropriate table via data node
+    existing_user = await get_user_by_username(db, user_data.username)
     if existing_user:
         raise HTTPException(status_code=400, detail="Username already exists")
     
     # Generate 2FA secret only for students (not for teachers/admins)
     totp_secret = generate_totp_secret() if user_data.user_type == "student" else None
     
-    # Create user in appropriate table
-    if user_data.user_type == "student":
-        db_user = Student(
-            username=user_data.username,
-            password_hash=get_password_hash(user_data.password),
-            student_name=user_data.username,  # Set to username initially
-            totp_secret=totp_secret,
-            is_active=True,
-            student_courses=[],
-            student_tags=[]
-        )
-    elif user_data.user_type == "teacher":
-        db_user = Teacher(
-            username=user_data.username,
-            password_hash=get_password_hash(user_data.password),
-            teacher_name=user_data.username,  # Set to username initially
-            is_active=True,
-            teacher_courses=[]
-        )
-    else:
-        raise HTTPException(status_code=400, detail="Invalid user type")
+    # Create user in data node with authentication details via new API endpoints
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
     
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
+    import httpx
+    async with httpx.AsyncClient() as client:
+        headers = {"Internal-Token": f"Bearer {internal_token}"}
+        
+        user_id = None
+        if user_data.user_type == "student":
+            # Generate 2FA secret only for students (not for teachers/admins)
+            totp_secret = generate_totp_secret() if user_data.user_type == "student" else None
+            
+            # Create password hash
+            password_hash = get_password_hash(user_data.password)
+            
+            # Call the data node to create the student with auth details
+            student_payload = {
+                "username": user_data.username,
+                "password_hash": password_hash,
+                "student_name": user_data.username,  # Set to username initially
+                "totp_secret": totp_secret,
+                "is_active": True,
+                "student_courses": [],
+                "student_tags": []
+            }
+            
+            response = await client.post(f"{data_node_url}/add/student-with-auth", json=student_payload, headers=headers)
+            if response.status_code != 201:
+                raise HTTPException(status_code=500, detail=f"Failed to create student in data node: {response.text}")
+            
+            student_response = response.json()
+            user_id = student_response.get("student_id")
+            
+        elif user_data.user_type == "teacher":
+            # Create password hash
+            password_hash = get_password_hash(user_data.password)
+            
+            # Call the data node to create the teacher with auth details
+            teacher_payload = {
+                "username": user_data.username,
+                "password_hash": password_hash,
+                "teacher_name": user_data.username,  # Set to username initially
+                "is_active": True,
+                "teacher_courses": []
+            }
+            
+            response = await client.post(f"{data_node_url}/add/teacher-with-auth", json=teacher_payload, headers=headers)
+            if response.status_code != 201:
+                raise HTTPException(status_code=500, detail=f"Failed to create teacher in data node: {response.text}")
+            
+            teacher_response = response.json()
+            user_id = teacher_response.get("teacher_id")
+        else:
+            raise HTTPException(status_code=400, detail="Invalid user type")
+        
+        if not user_id:
+            raise HTTPException(status_code=500, detail="Failed to create user in data node")
     
     # Mark registration code as used
     if user_data.registration_code:
         reg_code.is_used = True
-        reg_code.used_by = get_user_id(db_user)
+        reg_code.used_by = user_id
         db.commit()
     
     # Revoke any existing refresh tokens for this user (shouldn't exist for new user, but be safe)
     existing_tokens = db.query(RefreshToken).filter(
-        RefreshToken.user_id == get_user_id(db_user),
+        RefreshToken.user_id == user_id,
         RefreshToken.is_revoked == False
     ).all()
     for token in existing_tokens:
@@ -194,23 +232,23 @@ async def register_v1(
     
     # Generate new refresh token
     refresh_token = create_refresh_token({
-        "user_id": get_user_id(db_user),
-        "username": db_user.username,
+        "user_id": user_id,
+        "username": user_data.username,
         "user_type": user_data.user_type
     })
     
     # Store new refresh token
     token_hash = hash_token(refresh_token)
     db_token = RefreshToken(
-        user_id=get_user_id(db_user),
+        user_id=user_id,
         token_hash=token_hash,
-        expires_at=datetime.utcnow() + timedelta(days=7)
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7)
     )
     db.add(db_token)
     db.commit()
     
-    # Get TOTP URI for QR code
-    totp_uri = get_totp_uri(totp_secret, user_data.username)
+    # Get TOTP URI for QR code (only for students)
+    totp_uri = get_totp_uri(totp_secret, user_data.username) if totp_secret else None
     
     return {
         "totp_secret": totp_secret,
@@ -235,7 +273,7 @@ async def register_v2(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -278,7 +316,7 @@ async def login_v1(
     db: Session = Depends(get_db)
 ):
     """Login phase 1: Verify credentials and get refresh token"""
-    user = get_user_by_username(db, login_data.username)
+    user = await get_user_by_username(db, login_data.username)
     
     if not user or not verify_password(login_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -306,7 +344,7 @@ async def login_v1(
     db_token = RefreshToken(
         user_id=get_user_id(user),
         token_hash=token_hash,
-        expires_at=datetime.utcnow() + timedelta(days=7)
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7)
     )
     db.add(db_token)
     db.commit()
@@ -331,7 +369,7 @@ async def login_v2(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -381,7 +419,7 @@ async def check_2fa_status(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -410,7 +448,7 @@ async def login_no_2fa(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -492,7 +530,7 @@ async def refresh_access_token(
         if not db_token:
             raise HTTPException(status_code=401, detail="Token revoked or not found")
         
-        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -556,7 +594,7 @@ async def get_user_info(
             )
         else:
             # Look up regular user using auth_helpers
-            user = get_user_by_id(db, user_id, user_type)
+            user = await get_user_by_id(db, user_id, user_type)
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             
@@ -629,7 +667,7 @@ async def generate_registration_code_endpoint(
 ):
     """Generate registration code (admin only)"""
     code = generate_registration_code()
-    expires_at = datetime.utcnow() + timedelta(days=code_data.expires_days)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=code_data.expires_days)
     
     db_code = RegistrationCode(
         code=code,
@@ -660,7 +698,7 @@ async def generate_reset_code_endpoint(
         raise HTTPException(status_code=404, detail="User not found")
     
     code = generate_reset_code()
-    expires_at = datetime.utcnow() + timedelta(days=reset_data.expires_days)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=reset_data.expires_days)
     
     db_code = ResetCode(
         code=code,
@@ -689,14 +727,14 @@ async def reset_2fa(
     db_code = db.query(ResetCode).filter(
         ResetCode.code == reset_code,
         ResetCode.is_used == False,
-        ResetCode.expires_at > datetime.utcnow()
+        ResetCode.expires_at > datetime.now(timezone.utc)
     ).first()
     
     if not db_code:
         raise HTTPException(status_code=400, detail="Invalid or expired reset code")
     
     # Get user using the user_id from the reset code
-    user = get_user_by_id(db, db_code.user_id, "student")  # Only students have reset codes
+    user = await get_user_by_id(db, db_code.user_id, "student")  # Only students have reset codes
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
