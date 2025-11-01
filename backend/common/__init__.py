@@ -77,6 +77,7 @@ from .socket_transport import (
     SocketClient,
     get_socket_config,
     create_socket_server_config,
+    create_dual_server_config,
 )
 
 __all__ = [
@@ -152,4 +153,5 @@ __all__ = [
     "SocketClient",
     "get_socket_config",
     "create_socket_server_config",
+    "create_dual_server_config",
 ]

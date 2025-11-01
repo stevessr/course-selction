@@ -2,6 +2,7 @@
   <a-config-provider :theme="{ token: { colorPrimary: '#1890ff' } }">
     <router-view />
     <DebugPanel />
+    <DebugFloatingButton />
   </a-config-provider>
 </template>
 
@@ -10,6 +11,7 @@ import { onMounted } from 'vue'
 import { useAuthStore } from '@/store/auth'
 import { useDebugStore } from '@/store/debug'
 import DebugPanel from '@/components/DebugPanel.vue'
+import DebugFloatingButton from '@/components/DebugFloatingButton.vue'
 
 const authStore = useAuthStore()
 const debugStore = useDebugStore()
@@ -21,7 +23,7 @@ onMounted(() => {
   // Check if debug mode should be enabled
   debugStore.checkDebugMode()
   
-  // Add keyboard shortcut to toggle debug panel (Ctrl+Shift+D)
+  // Add keyboard shortcut to toggle debug panel (Ctrl+Shift+D) - for power users
   window.addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.shiftKey && e.key === 'D') {
       debugStore.toggle()
