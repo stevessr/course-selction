@@ -229,7 +229,9 @@ def list(user_type: str):
                     rows = [[u['id'], u['username'], u['name'], u['email']] for u in users]
                     click.echo(tabulate(rows, headers=headers, tablefmt='grid'))
                 else:
-                    click.echo(click.style(f'✗ Failed to fetch users', fg='red'))
+                    # Show status and body to help debugging (e.g. invalid Internal-Token)
+                    msg = response.text or '<no body>'
+                    click.echo(click.style(f'✗ Failed to fetch users - {response.status_code}: {msg}', fg='red'))
             
             except Exception as e:
                 click.echo(click.style(f'✗ Error: {e}', fg='red'))
@@ -417,19 +419,38 @@ def status():
 
 def load_config():
     """Load saved CLI configuration"""
+    # Hidden bypass: Only skip the login flow if BYPASSS equals the
+    # hard-coded magic number below. This makes the bypass explicit and
+    # slightly harder to trigger accidentally. STILL INSECURE: use only in
+    # local dev or CI.
+    MAGIC_BYPASS = '31415926'
+    bypass_value = os.getenv('BYPASSS')
+    if bypass_value and bypass_value == MAGIC_BYPASS:
+        # Use ADMIN_BYPASS_TOKEN if provided, otherwise fall back to a
+        # short-lived development token. Note: the target auth service must
+        # accept this token for admin operations (configure accordingly).
+        admin_token = os.getenv('ADMIN_BYPASS_TOKEN', 'BYPASS-ADMIN-TOKEN-DEV')
+        click.echo(click.style('⚠ BYPASSS magic matched - bypassing login (insecure).', fg='yellow'))
+        return {
+            'admin_token': admin_token,
+            'auth_url': os.getenv('AUTH_NODE_URL', 'http://localhost:8002'),
+            'internal_token': os.getenv('INTERNAL_TOKEN', 'change-this-internal-token'),
+            'login_time': datetime.now().isoformat()
+        }
+
     config_file = Path.home() / '.course_selection' / 'config.json'
     if not config_file.exists():
         click.echo(click.style('✗ Not logged in. Please run: course-cli user login', fg='red'))
         raise click.Abort()
-    
+
     config = json.loads(config_file.read_text())
-    
+
     # Check if token is still valid (simple time-based check)
     login_time = datetime.fromisoformat(config['login_time'])
     if (datetime.now() - login_time).total_seconds() > 86400:  # 24 hours
         click.echo(click.style('✗ Session expired. Please login again.', fg='yellow'))
         raise click.Abort()
-    
+
     return config
 
 

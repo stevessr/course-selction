@@ -8,6 +8,9 @@ import secrets
 import hashlib
 import os
 
+# Debug mode flag - disables password encryption when true (FOR DEBUGGING ONLY!)
+DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() in ("true", "1", "yes")
+
 # Password hashing
 # Prefer pbkdf2_sha256 which doesn't rely on the native bcrypt C extension
 # (avoids issues with broken bcrypt installs). Keep bcrypt_sha256/bcrypt as
@@ -24,6 +27,11 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash"""
+    if DEBUG_MODE:
+        # Debug mode: compare plain text passwords
+        print(f"WARNING: DEBUG MODE ENABLED - Plain text password comparison!")
+        return plain_password == hashed_password
+
     # Normalize long passwords to avoid bcrypt 72-byte limitation
     pw = _normalize_password(plain_password)
     return pwd_context.verify(pw, hashed_password)
@@ -31,6 +39,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     """Hash a password"""
+    if DEBUG_MODE:
+        # Debug mode: return plain text password (NOT SECURE!)
+        print(f"WARNING: DEBUG MODE ENABLED - Password '{password}' stored in PLAIN TEXT!")
+        return password
+
     pw = _normalize_password(password)
     return pwd_context.hash(pw)
 

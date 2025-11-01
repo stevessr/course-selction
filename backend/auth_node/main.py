@@ -33,6 +33,45 @@ engine = create_db_engine(DATABASE_URL)
 SessionLocal = create_session_factory(engine)
 init_database(engine, Base)
 
+
+def ensure_initial_admin():
+    """Ensure a default admin user exists in the database.
+
+    This runs at startup so the admin is created regardless of how the
+    FastAPI app is launched (uvicorn module, python -m, etc.). Uses
+    ADMIN_PASSWORD env var or falls back to a known default for demos.
+    """
+    try:
+        with SessionLocal() as db:
+            admin = db.query(Admin).filter(Admin.username == "admin").first()
+            if not admin:
+                default_password = os.getenv("ADMIN_PASSWORD", "admin123")
+                admin = Admin(
+                    username="admin",
+                    password_hash=get_password_hash(default_password)
+                )
+                db.add(admin)
+                db.commit()
+                print("=" * 60)
+                print("IMPORTANT: Initial admin created")
+                print("Username: admin")
+                # SECURITY: Don't log the actual password in production
+                if default_password == "admin123":
+                    print("Password: admin123 (DEFAULT - CHANGE IMMEDIATELY!)")
+                    print("WARNING: Using default password! Change it in production!")
+                    print("Set ADMIN_PASSWORD environment variable to use a custom password.")
+                else:
+                    print("Password: <set via ADMIN_PASSWORD environment variable>")
+                print("=" * 60)
+    except Exception:
+        # If DB isn't ready yet or there's another error, don't crash the app
+        # The admin can be created later by calling this function again.
+        pass
+
+
+# Ensure default admin exists at startup (works for uvicorn or python -m)
+ensure_initial_admin()
+
 # FastAPI app
 app = FastAPI(title="Authentication Node", version="1.0.0")
 
@@ -519,31 +558,7 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    
-    # Create initial admin if not exists
-    with SessionLocal() as db:
-        admin = db.query(Admin).filter(Admin.username == "admin").first()
-        if not admin:
-            # SECURITY: Generate random password or use environment variable
-            default_password = os.getenv("ADMIN_PASSWORD", "admin123")
-            admin = Admin(
-                username="admin",
-                password_hash=get_password_hash(default_password)
-            )
-            db.add(admin)
-            db.commit()
-            print("=" * 60)
-            print("IMPORTANT: Initial admin created")
-            print(f"Username: admin")
-            # SECURITY: Don't log the actual password
-            if default_password == "admin123":
-                print("Password: admin123 (DEFAULT - CHANGE IMMEDIATELY!)")
-                print("WARNING: Using default password! Change it in production!")
-                print("Set ADMIN_PASSWORD environment variable to use a custom password.")
-            else:
-                print("Password: <set via ADMIN_PASSWORD environment variable>")
-            print("=" * 60)
-    
+
     # Get socket or HTTP config based on environment
     config = create_socket_server_config('auth_node', PORT)
     uvicorn.run(app, **config)

@@ -139,5 +139,9 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     refreshAccessToken,
     restoreSession,
+    // expose internal helpers for UI code
+    setTokens,
+    setUser,
+    setTotpInfo,
   }
 })
