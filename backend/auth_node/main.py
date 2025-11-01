@@ -573,6 +573,216 @@ async def reset_2fa(
     }
 
 
+# Admin User Management Endpoints
+
+@app.get("/admin/users")
+async def list_users(
+    user_type: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    search: str = "",
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """List all users (admin only)"""
+    query_users = db.query(User)
+    query_admins = db.query(Admin)
+    
+    # Apply filters
+    if user_type:
+        if user_type == "admin":
+            query_users = query_users.filter(User.user_id == -1)  # No match
+        else:
+            query_users = query_users.filter(User.user_type == user_type)
+            query_admins = query_admins.filter(Admin.admin_id == -1)  # No match
+    
+    if search:
+        query_users = query_users.filter(User.username.contains(search))
+        query_admins = query_admins.filter(Admin.username.contains(search))
+    
+    # Get total count
+    total_users = query_users.count()
+    total_admins = query_admins.count() if not user_type or user_type == "admin" else 0
+    total = total_users + total_admins
+    
+    # Pagination
+    offset = (page - 1) * page_size
+    users_list = []
+    
+    # Get users
+    if not user_type or user_type != "admin":
+        db_users = query_users.order_by(User.created_at.desc()).offset(offset).limit(page_size).all()
+        for user in db_users:
+            users_list.append({
+                "user_id": user.user_id,
+                "username": user.username,
+                "user_type": user.user_type,
+                "is_active": user.is_active,
+                "totp_secret": user.totp_secret if user.user_type == "student" else None,
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+                "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+            })
+    
+    # Get admins if needed
+    remaining = page_size - len(users_list)
+    if remaining > 0 and (not user_type or user_type == "admin"):
+        admin_offset = max(0, offset - total_users)
+        db_admins = query_admins.order_by(Admin.created_at.desc()).offset(admin_offset).limit(remaining).all()
+        for admin in db_admins:
+            users_list.append({
+                "user_id": None,
+                "admin_id": admin.admin_id,
+                "username": admin.username,
+                "user_type": "admin",
+                "is_active": True,
+                "totp_secret": None,
+                "created_at": admin.created_at.isoformat() if admin.created_at else None,
+                "updated_at": None,
+            })
+    
+    return {
+        "users": users_list,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
+
+
+@app.post("/admin/user/add")
+async def add_user_endpoint(
+    user_data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Add new user (admin only)"""
+    import secrets
+    import string
+    
+    username = user_data.get("username")
+    password = user_data.get("password")
+    user_type = user_data.get("user_type")
+    
+    if not username or not user_type:
+        raise HTTPException(status_code=400, detail="Username and user_type required")
+    
+    # Generate password if not provided
+    if not password:
+        alphabet = string.ascii_letters + string.digits
+        password = ''.join(secrets.choice(alphabet) for _ in range(12))
+    
+    # Check if user exists
+    if user_type == "admin":
+        existing = db.query(Admin).filter(Admin.username == username).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Admin already exists")
+        
+        # Create admin
+        new_admin = Admin(
+            username=username,
+            password_hash=get_password_hash(password)
+        )
+        db.add(new_admin)
+    else:
+        existing = db.query(User).filter(User.username == username).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="User already exists")
+        
+        # Create user
+        new_user = User(
+            username=username,
+            password_hash=get_password_hash(password),
+            user_type=user_type,
+            is_active=True
+        )
+        db.add(new_user)
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "User created successfully",
+        "username": username,
+        "password": password,  # Return generated password
+        "user_type": user_type
+    }
+
+
+@app.post("/admin/user/delete")
+async def delete_user_endpoint(
+    data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Delete user (admin only)"""
+    user_id = data.get("user_id")
+    user_type = data.get("user_type")
+    
+    if not user_id or not user_type:
+        raise HTTPException(status_code=400, detail="user_id and user_type required")
+    
+    if user_type == "admin":
+        admin = db.query(Admin).filter(Admin.admin_id == user_id).first()
+        if not admin:
+            raise HTTPException(status_code=404, detail="Admin not found")
+        db.delete(admin)
+    else:
+        user = db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        db.delete(user)
+    
+    db.commit()
+    return {"success": True, "message": "User deleted successfully"}
+
+
+@app.post("/admin/user/reset-2fa")
+async def reset_user_2fa_endpoint(
+    data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Reset user 2FA (admin only)"""
+    username = data.get("username")
+    if not username:
+        raise HTTPException(status_code=400, detail="Username required")
+    
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user.user_type != "student":
+        raise HTTPException(status_code=400, detail="Only students have 2FA")
+    
+    # Reset TOTP secret
+    user.totp_secret = None
+    db.commit()
+    
+    return {"success": True, "message": "2FA reset successfully"}
+
+
+@app.post("/admin/user/toggle-status")
+async def toggle_user_status_endpoint(
+    data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Toggle user active status (admin only)"""
+    user_id = data.get("user_id")
+    is_active = data.get("is_active")
+    
+    if user_id is None or is_active is None:
+        raise HTTPException(status_code=400, detail="user_id and is_active required")
+    
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.is_active = is_active
+    db.commit()
+    
+    return {"success": True, "message": f"User {'activated' if is_active else 'deactivated'} successfully"}
+
+
 # Health check
 @app.get("/health")
 async def health_check():
