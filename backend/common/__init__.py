@@ -1,6 +1,8 @@
 """Common package initialization"""
 from .models import (
-    Base,
+    DataBase,
+    AuthBase,
+    QueueBase,
     Course,
     Student,
     Teacher,
@@ -91,8 +93,10 @@ from .socket_transport import (
 )
 
 __all__ = [
-    # Models
-    "Base",
+    # Models and Bases
+    "DataBase",
+    "AuthBase",
+    "QueueBase",
     "Course",
     "Student",
     "Teacher",

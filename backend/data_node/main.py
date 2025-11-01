@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 
 from backend.common import (
-    Base, Course, Student, Teacher,
+    DataBase, Course, Student, Teacher,
     CourseCreate, CourseUpdate, CourseResponse,
     StudentCreate, StudentResponse,
     TeacherCreate, TeacherResponse,
@@ -23,7 +23,7 @@ PORT = int(os.getenv("PORT", "8001"))
 # Database setup
 engine = create_db_engine(DATABASE_URL)
 SessionLocal = create_session_factory(engine)
-init_database(engine, Base)
+init_database(engine, DataBase)
 
 # FastAPI app
 app = FastAPI(title="Course Data Node", version="1.0.0")

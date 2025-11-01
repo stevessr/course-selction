@@ -10,7 +10,7 @@ import asyncio
 import httpx
 
 from backend.common import (
-    Base, QueueTask,
+    QueueBase, QueueTask,
     QueueTaskSubmit, QueueTaskStatus,
     get_database_url, create_db_engine, create_session_factory, init_database,
     IPRateLimiter, course_selection_limiter,
@@ -30,7 +30,7 @@ selection_limiter = IPRateLimiter(capacity=10, refill_rate=0.1)
 # Database setup
 engine = create_db_engine(DATABASE_URL)
 SessionLocal = create_session_factory(engine)
-init_database(engine, Base)
+init_database(engine, QueueBase)
 
 # FastAPI app
 app = FastAPI(title="Queue Buffer Node", version="1.0.0")

@@ -7,7 +7,7 @@ from typing import Optional
 import os
 
 from backend.common import (
-    Base, Student, Teacher, Admin, RefreshToken, RegistrationCode, ResetCode,
+    AuthBase, Student, Teacher, Admin, RefreshToken, RegistrationCode, ResetCode,
     UserCreate, UserLogin, User2FA, UserResponse, AdminResponse,
     AdminCreate, AdminLogin,
     RegistrationCodeCreate, RegistrationCodeResponse,
@@ -35,7 +35,7 @@ PORT = int(os.getenv("PORT", "8002"))
 # Database setup
 engine = create_db_engine(DATABASE_URL)
 SessionLocal = create_session_factory(engine)
-init_database(engine, Base)
+init_database(engine, AuthBase)
 
 
 def ensure_initial_admin():
