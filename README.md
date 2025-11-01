@@ -268,6 +268,32 @@ Once services are running, access the interactive API documentation:
 - Student Service: http://localhost:8004/docs
 - Queue Node: http://localhost:8005/docs
 
+## New Features Documentation / 新功能文档
+
+### CLI Tool / CLI 工具
+Complete command-line interface for system management. See [CLI_SOCKET_GUIDE.md](CLI_SOCKET_GUIDE.md) for full documentation.
+
+**Quick Reference:**
+```bash
+course-cli user login              # Admin login
+course-cli user add-student        # Add student
+course-cli user list               # List users
+course-cli import csv users.csv    # Import from CSV
+course-cli status                  # Check system health
+```
+
+### Socket Communication / Socket 通信
+High-performance inter-service communication using Unix sockets (2-3x faster than HTTP in dev). See [CLI_SOCKET_GUIDE.md](CLI_SOCKET_GUIDE.md) for details.
+
+**Configuration:**
+```bash
+export USE_SOCKETS=true           # Enable sockets (default in dev)
+./start_backend.sh                # Services auto-use sockets
+```
+
+### Feature Summary / 功能总结
+Complete implementation details and benchmarks in [FEATURE_SUMMARY.md](FEATURE_SUMMARY.md).
+
 ## License
 
 MIT
