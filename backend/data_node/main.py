@@ -11,7 +11,8 @@ from backend.common import (
     CourseCreate, CourseUpdate, CourseResponse,
     StudentCreate, StudentResponse,
     TeacherCreate, TeacherResponse,
-    get_database_url, create_db_engine, create_session_factory, init_database
+    get_database_url, create_db_engine, create_session_factory, init_database,
+    create_socket_server_config,
 )
 
 # Configuration
@@ -428,4 +429,6 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    # Get socket or HTTP config based on environment
+    config = create_socket_server_config('data_node', PORT)
+    uvicorn.run(app, **config)

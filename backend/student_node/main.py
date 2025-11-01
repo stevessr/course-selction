@@ -8,6 +8,7 @@ from backend.common import (
     CourseSelectionRequest,
     get_current_user_from_token, verify_user_type,
     call_service_api, get_request_headers, api_limiter,
+    create_socket_server_config, SocketClient,
 )
 
 # Configuration
@@ -453,4 +454,6 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    # Get socket or HTTP config based on environment
+    config = create_socket_server_config('student_node', PORT)
+    uvicorn.run(app, **config)

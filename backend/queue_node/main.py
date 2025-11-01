@@ -14,6 +14,7 @@ from backend.common import (
     QueueTaskSubmit, QueueTaskStatus,
     get_database_url, create_db_engine, create_session_factory, init_database,
     IPRateLimiter, course_selection_limiter,
+    create_socket_server_config, SocketClient,
 )
 
 # Configuration
@@ -354,4 +355,6 @@ async def health_check(db: Session = Depends(get_db)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    # Get socket or HTTP config based on environment
+    config = create_socket_server_config('queue_node', PORT)
+    uvicorn.run(app, **config)

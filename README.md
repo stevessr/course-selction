@@ -25,6 +25,8 @@ A comprehensive student course selection system built with FastAPI (Python) back
 - Refresh token + access token mechanism / 刷新令牌 + 访问令牌机制
 - SQLite database with master-slave replication support / SQLite 数据库支持主从复制
 - Role-based access control (Student, Teacher, Admin) / 基于角色的访问控制（学生、教师、管理员）
+- **CLI tool for user management / CLI 用户管理工具** ✨ NEW
+- **Socket communication for performance / Socket 通信优化性能** ✨ NEW
 - **CSV user import / CSV 用户导入** ✨ NEW
 - **Random user generation / 随机用户生成** ✨ NEW
 - **Complete test suite / 完整测试套件** ✨ NEW
@@ -148,6 +150,56 @@ alice.johnson,pass123,Alice Johnson,alice@example.com
 ```
 
 See `examples/users_example.csv` for a complete example.
+
+### CLI Tool for User Management / CLI 用户管理工具 ✨
+
+```bash
+# Login as admin
+course-cli user login
+
+# Add a student
+course-cli user add-student --username alice --name "Alice" --email alice@example.com
+
+# Add a teacher
+course-cli user add-teacher --username bob --name "Bob" --email bob@example.com
+
+# List users
+course-cli user list --user-type student
+
+# Delete a user
+course-cli user delete 5 --user-type student
+
+# Reset 2FA
+course-cli user reset-2fa alice
+
+# Generate registration code
+course-cli code generate --user-type student --max-uses 1
+
+# Import from CSV
+course-cli import csv users.csv --user-type student --generate-passwords
+
+# Check system status
+course-cli status
+```
+
+See [CLI_SOCKET_GUIDE.md](CLI_SOCKET_GUIDE.md) for complete CLI documentation.
+
+### Socket Communication for Performance / Socket 通信优化性能 ✨
+
+The system supports Unix domain sockets for faster inter-service communication in development:
+
+```bash
+# Enable socket communication (default in dev)
+export USE_SOCKETS=true
+export SOCKET_DIR=/tmp/course-selection-sockets
+
+# Start services (will use sockets automatically)
+./start_backend.sh
+```
+
+**Performance**: Socket communication is ~2-3x faster than HTTP for local services!
+
+See [CLI_SOCKET_GUIDE.md](CLI_SOCKET_GUIDE.md) for complete documentation.
 
 ### Run Tests / 运行测试
 

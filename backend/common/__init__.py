@@ -61,6 +61,12 @@ from .utils import (
     get_request_headers,
     call_service_api,
 )
+from .socket_transport import (
+    SocketTransport,
+    SocketClient,
+    get_socket_config,
+    create_socket_server_config,
+)
 
 __all__ = [
     # Models
@@ -119,4 +125,9 @@ __all__ = [
     "verify_user_type",
     "get_request_headers",
     "call_service_api",
+    # Socket transport
+    "SocketTransport",
+    "SocketClient",
+    "get_socket_config",
+    "create_socket_server_config",
 ]

@@ -19,6 +19,7 @@ from backend.common import (
     generate_totp_secret, verify_totp, get_totp_uri,
     generate_registration_code, generate_reset_code, hash_token,
     get_current_user_from_token,
+    create_socket_server_config, SocketClient,
 )
 
 # Configuration
@@ -543,4 +544,6 @@ if __name__ == "__main__":
                 print("Password: <set via ADMIN_PASSWORD environment variable>")
             print("=" * 60)
     
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    # Get socket or HTTP config based on environment
+    config = create_socket_server_config('auth_node', PORT)
+    uvicorn.run(app, **config)
