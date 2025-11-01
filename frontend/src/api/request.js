@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { useDebugStore } from '@/store/debug'
 
 const api = axios.create({
   baseURL: '/api',
@@ -8,6 +9,8 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
+    // Store request metadata for debugging
+    config.metadata = { startTime: new Date() }
     return config
   },
   (error) => {
@@ -21,6 +24,18 @@ api.interceptors.response.use(
     return response.data
   },
   (error) => {
+    // Track network errors in debug panel
+    const debugStore = useDebugStore()
+    
+    if (debugStore.isEnabled) {
+      debugStore.addNetworkError({
+        method: error.config?.method?.toUpperCase() || 'UNKNOWN',
+        url: error.config?.url || 'Unknown URL',
+        status: error.response?.status || 'Network Error',
+        response: error.response?.data || { message: error.message }
+      })
+    }
+    
     const message = error.response?.data?.detail || error.message || 'An error occurred'
     return Promise.reject(new Error(message))
   }

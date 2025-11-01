@@ -25,12 +25,14 @@ A comprehensive student course selection system built with FastAPI (Python) back
 - Refresh token + access token mechanism / 刷新令牌 + 访问令牌机制
 - SQLite database with master-slave replication support / SQLite 数据库支持主从复制
 - Role-based access control (Student, Teacher, Admin) / 基于角色的访问控制（学生、教师、管理员）
-- **CLI tool for user management / CLI 用户管理工具** ✨ NEW
-- **Socket communication for performance / Socket 通信优化性能** ✨ NEW
-- **CSV user import / CSV 用户导入** ✨ NEW
-- **Random user generation / 随机用户生成** ✨ NEW
-- **Complete test suite / 完整测试套件** ✨ NEW
-- **DevContainer support / DevContainer 支持** ✨ NEW
+- **CLI tool for user management / CLI 用户管理工具** ✨
+- **Socket communication for performance / Socket 通信优化性能** ✨
+- **CSV user import / CSV 用户导入** ✨
+- **Random user generation / 随机用户生成** ✨
+- **Complete test suite / 完整测试套件** ✨
+- **DevContainer support / DevContainer 支持** ✨
+- **Debug panel for runtime error tracking / 运行时错误跟踪调试面板** ✨ NEW
+- **Database editor CLI tool / 数据库编辑命令行工具** ✨ NEW
 
 ## Project Structure
 
@@ -63,11 +65,15 @@ For developer guide, see [DEVELOPER.md](DEVELOPER.md)
 
 For user guide, see [USER_GUIDE.md](USER_GUIDE.md)
 
+**For debug panel and database editor, see [DEBUG_DB_GUIDE.md](DEBUG_DB_GUIDE.md)** ✨ NEW
+
 详细的安装说明请参阅 [SETUP.md](SETUP.md)
 
 开发者指南请参阅 [DEVELOPER.md](DEVELOPER.md)
 
 用户指南请参阅 [USER_GUIDE.md](USER_GUIDE.md)
+
+**调试面板和数据库编辑器指南请参阅 [DEBUG_DB_GUIDE.md](DEBUG_DB_GUIDE.md)** ✨ 新功能
 
 ### Option 1: DevContainer (Recommended) / 使用 DevContainer（推荐）
 
@@ -281,6 +287,34 @@ course-cli user list               # List users
 course-cli import csv users.csv    # Import from CSV
 course-cli status                  # Check system health
 ```
+
+### Database Editor / 数据库编辑器 ✨ NEW
+
+Direct database modification CLI tool with full permissions. **Use with caution!** See [DEBUG_DB_GUIDE.md](DEBUG_DB_GUIDE.md) for full documentation.
+
+**Quick Reference:**
+```bash
+course-db-edit list-tables -d data              # List all tables
+course-db-edit query -d data -t courses -l 10   # Query records
+course-db-edit update-record -d data -t courses \
+  -w '{"course_id":1}' -v '{"course_capacity":150}'
+course-db-edit delete-record -d auth -t refresh_tokens \
+  -w '{"is_revoked":true}'
+```
+
+### Debug Panel / 调试面板 ✨ NEW
+
+Browser-based runtime error tracking with beautiful UI. See [DEBUG_DB_GUIDE.md](DEBUG_DB_GUIDE.md) for full documentation.
+
+**Activation:**
+- Press `Ctrl+Shift+D` anywhere in the application
+- Or set `localStorage.setItem('debug_mode', 'enabled')` and reload
+
+**Features:**
+- Real-time error capture with stack traces
+- Network error monitoring
+- Console log interception
+- Minimizable floating panel
 
 ### Socket Communication / Socket 通信
 High-performance inter-service communication using Unix sockets (2-3x faster than HTTP in dev). See [CLI_SOCKET_GUIDE.md](CLI_SOCKET_GUIDE.md) for details.

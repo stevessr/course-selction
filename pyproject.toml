@@ -36,6 +36,7 @@ dev = [
 
 [project.scripts]
 course-cli = "backend.common.cli:cli"
+course-db-edit = "backend.common.db_edit:db_edit"
 
 [build-system]
 requires = ["setuptools>=68.0.0", "wheel"]
