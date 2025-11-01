@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import Optional
 import os
+import httpx
 
 from backend.common import (
     AuthBase, Student, Teacher, Admin, RefreshToken, RegistrationCode, ResetCode,
@@ -734,56 +735,19 @@ async def list_users(
     db: Session = Depends(get_db)
 ):
     """List all users (admin only)"""
-    # This endpoint now needs to handle separate tables for students and teachers
-    students_list = []
-    teachers_list = []
-    admins_list = []
+    all_users_data = []
+    total = 0
     
-    # Query students if needed
-    if not user_type or user_type == "student":
-        query_students = db.query(Student)
-        if search:
-            query_students = query_students.filter(Student.username.contains(search))
-        total_students = query_students.count()
-        db_students = query_students.order_by(Student.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
-        for student in db_students:
-            students_list.append({
-                "user_id": student.student_id,
-                "username": student.username,
-                "user_type": "student",
-                "is_active": student.is_active,
-                "totp_secret": student.totp_secret if student.totp_secret else None,
-                "created_at": student.created_at.isoformat() if student.created_at else None,
-                "updated_at": student.updated_at.isoformat() if student.updated_at else None,
-            })
-    
-    # Query teachers if needed
-    if not user_type or user_type == "teacher":
-        query_teachers = db.query(Teacher)
-        if search:
-            query_teachers = query_teachers.filter(Teacher.username.contains(search))
-        total_teachers = query_teachers.count()
-        db_teachers = query_teachers.order_by(Teacher.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
-        for teacher in db_teachers:
-            teachers_list.append({
-                "user_id": teacher.teacher_id,
-                "username": teacher.username,
-                "user_type": "teacher",
-                "is_active": teacher.is_active,
-                "totp_secret": None,  # Teachers don't have 2FA
-                "created_at": teacher.created_at.isoformat() if teacher.created_at else None,
-                "updated_at": teacher.updated_at.isoformat() if teacher.updated_at else None,
-            })
-    
-    # Query admins if needed
+    # Get admin users from local database
     if not user_type or user_type == "admin":
         query_admins = db.query(Admin)
         if search:
             query_admins = query_admins.filter(Admin.username.contains(search))
         total_admins = query_admins.count()
         db_admins = query_admins.order_by(Admin.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
+        
         for admin in db_admins:
-            admins_list.append({
+            all_users_data.append({
                 "user_id": admin.admin_id,
                 "username": admin.username,
                 "user_type": "admin",
@@ -792,26 +756,85 @@ async def list_users(
                 "created_at": admin.created_at.isoformat() if admin.created_at else None,
                 "updated_at": None,
             })
+        total += total_admins
     
-    # Combine lists based on user_type filter and pagination
-    all_users = []
-    if user_type == "student":
-        all_users = students_list
-        total = total_students
-    elif user_type == "teacher":
-        all_users = teachers_list
-        total = total_teachers
-    elif user_type == "admin":
-        all_users = admins_list
-        total = total_admins
-    else:
-        # Combine all user types - this is more complex to handle pagination properly
-        # For simplicity, let's implement it as separate queries and combine the results
-        all_users = students_list + teachers_list + admins_list
-        total = total_students + total_teachers + total_admins
+    # For students and teachers, make API calls to data node
+    if not user_type or user_type in ["student", "teacher"]:
+        # Call the data node to get students and teachers
+        try:
+            # Use HTTPX to call the data node API
+            async with httpx.AsyncClient() as client:
+                # Prepare the internal token header
+                headers = {"Authorization": f"Bearer {INTERNAL_TOKEN}"}
+                
+                # First, get the count for pagination
+                if not user_type or user_type == "student":
+                    params = {"user_type": "student", "page": 1, "page_size": 1, "search": search}
+                    response = await client.get(f"{DATA_NODE_URL}/data/users", params=params, headers=headers)
+                    if response.status_code == 200:
+                        data = response.json()
+                        total_students = data.get("total", 0)
+                        total += total_students
+                        
+                        # Now get the actual paginated data if needed
+                        if not user_type or user_type == "student":
+                            params = {"user_type": "student", "page": page, "page_size": page_size, "search": search}
+                            response = await client.get(f"{DATA_NODE_URL}/data/users", params=params, headers=headers)
+                            if response.status_code == 200:
+                                student_data = response.json()
+                                for student in student_data.get("users", []):
+                                    # Normalize the student data to match our response format
+                                    all_users_data.append({
+                                        "user_id": student.get("user_id") or student.get("student_id"),
+                                        "username": student.get("username"),
+                                        "user_type": "student",
+                                        "is_active": student.get("is_active", True),
+                                        "totp_secret": student.get("totp_secret"),
+                                        "created_at": student.get("created_at"),
+                                        "updated_at": student.get("updated_at"),
+                                    })
+                
+                if not user_type or user_type == "teacher":
+                    params = {"user_type": "teacher", "page": 1, "page_size": 1, "search": search}
+                    response = await client.get(f"{DATA_NODE_URL}/data/users", params=params, headers=headers)
+                    if response.status_code == 200:
+                        data = response.json()
+                        total_teachers = data.get("total", 0)
+                        total += total_teachers
+                        
+                        # Now get the actual paginated data if needed
+                        if not user_type or user_type == "teacher":
+                            params = {"user_type": "teacher", "page": page, "page_size": page_size, "search": search}
+                            response = await client.get(f"{DATA_NODE_URL}/data/users", params=params, headers=headers)
+                            if response.status_code == 200:
+                                teacher_data = response.json()
+                                for teacher in teacher_data.get("users", []):
+                                    # Normalize the teacher data to match our response format
+                                    all_users_data.append({
+                                        "user_id": teacher.get("user_id") or teacher.get("teacher_id"),
+                                        "username": teacher.get("username"),
+                                        "user_type": "teacher",
+                                        "is_active": teacher.get("is_active", True),
+                                        "totp_secret": None,  # Teachers don't have 2FA
+                                        "created_at": teacher.get("created_at"),
+                                        "updated_at": teacher.get("updated_at"),
+                                    })
+        
+        except httpx.RequestError as e:
+            # Log the error and return an error response
+            raise HTTPException(status_code=500, detail=f"Error communicating with data node: {str(e)}")
+    
+    # Sort the combined list by created_at in descending order
+    all_users_data.sort(key=lambda x: x['created_at'] or '', reverse=True)
+    
+    # Apply pagination if we're combining multiple user types
+    if user_type is None:  # Only paginate if getting all types
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        all_users_data = all_users_data[start_index:end_index]
     
     return {
-        "users": all_users,
+        "users": all_users_data,
         "total": total,
         "page": page,
         "page_size": page_size

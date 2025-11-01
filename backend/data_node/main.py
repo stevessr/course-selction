@@ -420,6 +420,67 @@ async def deselect_course(
     return {"success": True, "message": "Course deselected successfully"}
 
 
+@app.get("/data/users")
+async def list_users(
+    user_type: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    search: str = "",
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_internal_token_header)
+):
+    """List users (students or teachers) - used by auth node admin panel"""
+    users = []
+    total = 0
+    
+    if user_type == "student" or user_type is None:
+        # Query students
+        query = db.query(Student)
+        if search:
+            query = query.filter(Student.username.contains(search))
+        total = query.count()
+        
+        # Apply pagination
+        students = query.order_by(Student.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
+        for student in students:
+            users.append({
+                "user_id": student.student_id,
+                "username": student.username,
+                "user_type": "student",
+                "is_active": student.is_active,
+                "totp_secret": student.totp_secret,
+                "created_at": student.created_at.isoformat() if student.created_at else None,
+                "updated_at": student.updated_at.isoformat() if student.updated_at else None,
+            })
+    
+    elif user_type == "teacher":
+        # Query teachers
+        query = db.query(Teacher)
+        if search:
+            query = query.filter(Teacher.username.contains(search))
+        total = query.count()
+        
+        # Apply pagination
+        teachers = query.order_by(Teacher.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
+        for teacher in teachers:
+            users.append({
+                "user_id": teacher.teacher_id,
+                "username": teacher.username,
+                "user_type": "teacher",
+                "is_active": teacher.is_active,
+                "totp_secret": None,  # Teachers don't have 2FA
+                "created_at": teacher.created_at.isoformat() if teacher.created_at else None,
+                "updated_at": teacher.updated_at.isoformat() if teacher.updated_at else None,
+            })
+    
+    return {
+        "users": users,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
+
+
 # Health check
 @app.get("/health")
 async def health_check():
