@@ -36,7 +36,19 @@ api.interceptors.response.use(
       })
     }
     
-    const message = error.response?.data?.detail || error.message || 'An error occurred'
+    // Check if the error is due to invalid token
+    const status = error.response?.status;
+    const message = error.response?.data?.detail || error.message || 'An error occurred';
+    
+    // If the error is due to invalid token (status 401) or the message contains "Invalid token"
+    if (status === 401 || (typeof message === 'string' && message.includes('Invalid token'))) {
+      // Automatically logout the user from auth store
+      import('@/store/auth').then(module => {
+        const authStore = module.useAuthStore();
+        authStore.logout();
+      });
+    }
+    
     return Promise.reject(new Error(message))
   }
 )

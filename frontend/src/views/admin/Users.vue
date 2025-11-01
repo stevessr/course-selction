@@ -372,10 +372,18 @@ const loadUsers = async () => {
       pagination.pageSize,
       searchText.value
     )
-    users.value = response.data.users || []
-    pagination.total = response.data.total || 0
+    users.value = response.users || []
+    pagination.total = response.total || 0
   } catch (error) {
-    message.error('加载用户列表失败: ' + (error.response?.data?.detail || error.message))
+    const errorDetail = error.response?.data?.detail || error.message;
+    
+    // Check if the error is due to invalid token
+    if (error.response?.status === 401 || errorDetail?.includes('Invalid token')) {
+      message.error('登录已过期，请重新登录');
+      authStore.logout();
+    } else {
+      message.error('加载用户列表失败: ' + errorDetail)
+    }
   } finally {
     loading.value = false
   }
@@ -420,7 +428,15 @@ const handleAddUser = async () => {
     resetAddUserForm()
     loadUsers()
   } catch (error) {
-    message.error('添加用户失败: ' + (error.response?.data?.detail || error.message))
+    const errorDetail = error.response?.data?.detail || error.message;
+    
+    // Check if the error is due to invalid token
+    if (error.response?.status === 401 || errorDetail?.includes('Invalid token')) {
+      message.error('登录已过期，请重新登录');
+      authStore.logout();
+    } else {
+      message.error('添加用户失败: ' + errorDetail)
+    }
   } finally {
     addUserLoading.value = false
   }
@@ -451,14 +467,22 @@ const handleImportUsers = async () => {
   importLoading.value = true
   try {
     const response = await adminApi.importUsers(authStore.accessToken, formData)
-    message.success(`成功导入 ${response.data.success_count} 个用户`)
-    if (response.data.failed_count > 0) {
-      message.warning(`${response.data.failed_count} 个用户导入失败`)
+    message.success(`成功导入 ${response.success_count} 个用户`)
+    if (response.failed_count > 0) {
+      message.warning(`${response.failed_count} 个用户导入失败`)
     }
     resetImportForm()
     loadUsers()
   } catch (error) {
-    message.error('导入用户失败: ' + (error.response?.data?.detail || error.message))
+    const errorDetail = error.response?.data?.detail || error.message;
+    
+    // Check if the error is due to invalid token
+    if (error.response?.status === 401 || errorDetail?.includes('Invalid token')) {
+      message.error('登录已过期，请重新登录');
+      authStore.logout();
+    } else {
+      message.error('导入用户失败: ' + errorDetail)
+    }
   } finally {
     importLoading.value = false
   }
@@ -475,7 +499,15 @@ const reset2FA = async (user) => {
     message.success('2FA重置成功')
     loadUsers()
   } catch (error) {
-    message.error('重置2FA失败: ' + (error.response?.data?.detail || error.message))
+    const errorDetail = error.response?.data?.detail || error.message;
+    
+    // Check if the error is due to invalid token
+    if (error.response?.status === 401 || errorDetail?.includes('Invalid token')) {
+      message.error('登录已过期，请重新登录');
+      authStore.logout();
+    } else {
+      message.error('重置2FA失败: ' + errorDetail)
+    }
   }
 }
 
@@ -485,7 +517,15 @@ const toggleUserStatus = async (user) => {
     message.success(`用户已${user.is_active ? '停用' : '启用'}`)
     loadUsers()
   } catch (error) {
-    message.error('操作失败: ' + (error.response?.data?.detail || error.message))
+    const errorDetail = error.response?.data?.detail || error.message;
+    
+    // Check if the error is due to invalid token
+    if (error.response?.status === 401 || errorDetail?.includes('Invalid token')) {
+      message.error('登录已过期，请重新登录');
+      authStore.logout();
+    } else {
+      message.error('操作失败: ' + errorDetail)
+    }
   }
 }
 
@@ -495,7 +535,15 @@ const deleteUser = async (user) => {
     message.success('用户删除成功')
     loadUsers()
   } catch (error) {
-    message.error('删除用户失败: ' + (error.response?.data?.detail || error.message))
+    const errorDetail = error.response?.data?.detail || error.message;
+    
+    // Check if the error is due to invalid token
+    if (error.response?.status === 401 || errorDetail?.includes('Invalid token')) {
+      message.error('登录已过期，请重新登录');
+      authStore.logout();
+    } else {
+      message.error('删除用户失败: ' + errorDetail)
+    }
   }
 }
 

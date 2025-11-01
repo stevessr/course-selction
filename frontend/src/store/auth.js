@@ -44,7 +44,12 @@ export const useAuthStore = defineStore('auth', () => {
       setTokens(null, response.refresh_token)
       return { success: true, needsTwoFactor: true }
     } catch (error) {
-      return { success: false, error: error.message }
+      // Handle specific error cases
+      let errorMessage = error.message || 'Login failed';
+      if (errorMessage === 'Account is inactive') {
+        errorMessage = 'Your account is currently inactive. Please contact the system administrator.';
+      }
+      return { success: false, error: errorMessage }
     }
   }
 

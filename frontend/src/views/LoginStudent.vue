@@ -109,8 +109,12 @@ const needsTwoFactor = ref(false)
 const handleLogin = async () => {
   loading.value = true
   try {
-    await authStore.login(loginForm.value.username, loginForm.value.password)
-    needsTwoFactor.value = true
+    const result = await authStore.login(loginForm.value.username, loginForm.value.password)
+    if (result.success) {
+      needsTwoFactor.value = true
+    } else {
+      message.error(result.error || 'Login failed')
+    }
   } catch (error) {
     message.error(error.message || 'Login failed')
   } finally {

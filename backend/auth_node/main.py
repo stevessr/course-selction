@@ -216,17 +216,29 @@ async def register_v2(
         if not verify_totp(user.totp_secret, totp_data.totp_code):
             raise HTTPException(status_code=400, detail="Invalid 2FA code")
         
-        # Generate access token
-        access_token = create_access_token({
-            "user_id": user.user_id,
-            "username": user.username,
-            "user_type": user.user_type
-        })
+        # Generate access token with different expiration based on user type
+        from datetime import timedelta
+        if user.user_type == "teacher":
+            # Teachers get 2 hours for longer sessions managing courses
+            access_token = create_access_token({
+                "user_id": user.user_id,
+                "username": user.username,
+                "user_type": user.user_type
+            }, expires_delta=timedelta(hours=2))
+            expires_in = 2 * 3600  # 2 hours in seconds
+        else:
+            # Default 30 minutes for students and other user types
+            access_token = create_access_token({
+                "user_id": user.user_id,
+                "username": user.username,
+                "user_type": user.user_type
+            })
+            expires_in = 30 * 60  # 30 minutes in seconds
         
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "expires_in": 30 * 60
+            "expires_in": expires_in
         }
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
@@ -291,17 +303,29 @@ async def login_v2(
         if not verify_totp(user.totp_secret, totp_data.totp_code):
             raise HTTPException(status_code=400, detail="Invalid 2FA code")
         
-        # Generate access token
-        access_token = create_access_token({
-            "user_id": user.user_id,
-            "username": user.username,
-            "user_type": user.user_type
-        })
+        # Generate access token with different expiration based on user type
+        from datetime import timedelta
+        if user.user_type == "teacher":
+            # Teachers get 2 hours for longer sessions managing courses
+            access_token = create_access_token({
+                "user_id": user.user_id,
+                "username": user.username,
+                "user_type": user.user_type
+            }, expires_delta=timedelta(hours=2))
+            expires_in = 2 * 3600  # 2 hours in seconds
+        else:
+            # Default 30 minutes for students and other user types
+            access_token = create_access_token({
+                "user_id": user.user_id,
+                "username": user.username,
+                "user_type": user.user_type
+            })
+            expires_in = 30 * 60  # 30 minutes in seconds
         
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "expires_in": 30 * 60
+            "expires_in": expires_in
         }
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
@@ -363,17 +387,29 @@ async def refresh_access_token(
             if not verify_totp(user.totp_secret, totp_data.totp_code):
                 raise HTTPException(status_code=400, detail="Invalid 2FA code")
         
-        # Generate new access token
-        access_token = create_access_token({
-            "user_id": user.user_id,
-            "username": user.username,
-            "user_type": user.user_type
-        })
+        # Generate new access token with different expiration based on user type
+        from datetime import timedelta
+        if user.user_type == "teacher":
+            # Teachers get 2 hours for longer sessions managing courses
+            access_token = create_access_token({
+                "user_id": user.user_id,
+                "username": user.username,
+                "user_type": user.user_type
+            }, expires_delta=timedelta(hours=2))
+            expires_in = 2 * 3600  # 2 hours in seconds
+        else:
+            # Default 30 minutes for students and other user types
+            access_token = create_access_token({
+                "user_id": user.user_id,
+                "username": user.username,
+                "user_type": user.user_type
+            })
+            expires_in = 30 * 60  # 30 minutes in seconds
         
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "expires_in": 30 * 60
+            "expires_in": expires_in
         }
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
