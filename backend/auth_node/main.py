@@ -465,7 +465,7 @@ async def login_no_2fa(
     authorization: str = Header(..., alias="Authorization"),
     db: Session = Depends(get_db)
 ):
-    """Login without 2FA for users who have 2FA disabled"""
+    """Login without 2FA for teachers only (students must have 2FA)"""
     try:
         refresh_token = authorization.replace("Bearer ", "")
         payload = decode_token(refresh_token)
@@ -477,9 +477,12 @@ async def login_no_2fa(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Check if user has 2FA disabled
-        # Only students with 2FA enabled are restricted from this endpoint
-        if (get_user_type(user) == "student" and has_2fa(user)):
+        # Students MUST have 2FA enabled - reject if student tries this endpoint
+        if get_user_type(user) == "student":
+            raise HTTPException(status_code=403, detail="Students must set up 2FA before logging in")
+        
+        # Only teachers without 2FA can use this endpoint
+        if get_user_type(user) == "teacher" and has_2fa(user):
             raise HTTPException(status_code=400, detail="User has 2FA enabled, cannot use this endpoint")
         
         # Generate access token with different expiration based on user type

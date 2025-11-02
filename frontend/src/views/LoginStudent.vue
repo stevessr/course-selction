@@ -181,26 +181,9 @@ onMounted(async () => {
         // User has 2FA enabled, show 2FA screen
         needsTwoFactor.value = true
       } else {
-        // Student without 2FA, login directly and redirect to setup
-        loading.value = true
-        try {
-          const result = await authStore.loginNo2FA()
-          if (result.success) {
-            message.info('Please set up 2FA for your account')
-            router.push('/student/setup-2fa')
-          } else {
-            message.error(result.error || 'Login failed')
-            // Clear tokens and show login form
-            authStore.setTokens(null, null)
-            needsTwoFactor.value = false
-          }
-        } catch (error) {
-          message.error(error.message || 'Login failed')
-          authStore.setTokens(null, null)
-          needsTwoFactor.value = false
-        } finally {
-          loading.value = false
-        }
+        // Student without 2FA - redirect to setup page directly
+        message.info('Please set up 2FA for your account')
+        router.push('/student/setup-2fa')
       }
     } else {
       // Invalid token or error, clear it and show login form
@@ -222,14 +205,9 @@ const handleLogin = async () => {
         // 2FA is enabled, show 2FA screen
         needsTwoFactor.value = true
       } else {
-        // Student without 2FA, login directly and redirect to setup
-        const loginResult = await authStore.loginNo2FA()
-        if (loginResult.success) {
-          message.info('Please set up 2FA for your account')
-          router.push('/student/setup-2fa')
-        } else {
-          message.error(loginResult.error || 'Login failed')
-        }
+        // Student without 2FA - redirect to setup page directly
+        message.info('Please set up 2FA for your account')
+        router.push('/student/setup-2fa')
       }
     } else {
       message.error(result.error || 'Login failed')

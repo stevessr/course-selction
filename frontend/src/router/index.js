@@ -156,7 +156,7 @@ router.beforeEach((to, from, next) => {
     }
   } else if (authStore.isAuthenticated && authStore.userType === 'student') {
     // Force students to set up 2FA if not already enabled
-    if (!authStore.has2FA && to.path !== '/student/settings' && to.meta.requiresAuth) {
+    if (!authStore.has2FA && to.path !== '/student/settings' && to.path !== '/student/setup-2fa' && to.meta.requiresAuth) {
       next('/student/settings')
     } else {
       next()
