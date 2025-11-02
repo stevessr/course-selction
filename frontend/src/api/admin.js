@@ -88,6 +88,14 @@ const adminApi = {
     })
   },
 
+  // Batch import user tags from CSV
+  batchImportUserTags(accessToken, csvText) {
+    return api.post('/auth/admin/student/batch-import-tags',
+      { csv_text: csvText },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
   // Course Management (Admin access)
   
   // List all courses

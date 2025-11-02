@@ -140,6 +140,31 @@ async def create_course(
     }
 
 
+@app.post("/teacher/courses/bulk-import")
+async def bulk_import_courses(
+    courses_data: List[CourseCreate],
+    current_user: Dict[str, Any] = Depends(get_current_teacher)
+):
+    """Bulk import courses for teacher"""
+    teacher_id = current_user.get("user_id")
+    
+    # Set teacher_id for all courses
+    for course in courses_data:
+        if current_user.get("user_type") != "admin":
+            course.course_teacher_id = teacher_id
+    
+    # Call data node bulk import
+    url = f"{DATA_NODE_URL}/bulk/import/courses"
+    result = await call_service_api(
+        url,
+        method="POST",
+        headers={"Internal-Token": INTERNAL_TOKEN},
+        json_data=[c.model_dump() for c in courses_data]
+    )
+    
+    return result
+
+
 @app.put("/teacher/course/update")
 async def update_course(
     course_id: int,

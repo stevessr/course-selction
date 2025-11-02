@@ -1415,6 +1415,120 @@ async def update_student_tags_endpoint(
     return {"success": True, "message": "Student tags updated successfully"}
 
 
+@app.post("/admin/student/batch-import-tags")
+async def batch_import_user_tags(
+    data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Batch import user tags from CSV format
+    CSV format: username,tag1,tag2,...,tagn
+    """
+    csv_text = data.get("csv_text")
+    if not csv_text:
+        raise HTTPException(status_code=400, detail="csv_text is required")
+    
+    results = {
+        "success": [],
+        "failed": [],
+        "total": 0
+    }
+    
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    # Parse CSV
+    lines = csv_text.strip().split('\n')
+    for line_num, line in enumerate(lines, 1):
+        if not line.strip():
+            continue
+            
+        results["total"] += 1
+        parts = [p.strip() for p in line.split(',')]
+        
+        if len(parts) < 2:
+            results["failed"].append({
+                "line": line_num,
+                "error": "Invalid format. Expected: username,tag1,tag2,..."
+            })
+            continue
+        
+        username = parts[0]
+        tags = [tag for tag in parts[1:] if tag]
+        
+        # Find student by username
+        student = db.query(Student).filter(Student.username == username).first()
+        if not student:
+            results["failed"].append({
+                "line": line_num,
+                "username": username,
+                "error": "Student not found"
+            })
+            continue
+        
+        # Get current tags for the student
+        try:
+            async with httpx.AsyncClient() as client:
+                headers = {"Internal-Token": internal_token}
+                # Get student details to retrieve current tags
+                response = await client.get(
+                    f"{data_node_url}/get/student",
+                    params={"student_id": student.student_id},
+                    headers=headers
+                )
+                
+                if response.status_code == 200:
+                    student_data = response.json()
+                    existing_tags = student_data.get("student_tags", [])
+                else:
+                    existing_tags = []
+                
+                # Merge tags (avoid duplicates)
+                updated_tags = list(set(existing_tags + tags))
+                
+                # Update student tags
+                params = {"student_id": student.student_id, "student_tags": updated_tags}
+                response = await client.post(
+                    f"{data_node_url}/update/student",
+                    params=params,
+                    headers=headers
+                )
+                
+                if response.status_code == 200:
+                    results["success"].append({
+                        "username": username,
+                        "tags_added": tags,
+                        "total_tags": len(updated_tags)
+                    })
+                else:
+                    results["failed"].append({
+                        "line": line_num,
+                        "username": username,
+                        "error": f"Failed to update: {response.text}"
+                    })
+        except httpx.HTTPError as e:
+            results["failed"].append({
+                "line": line_num,
+                "username": username,
+                "error": f"HTTP error: {str(e)}"
+            })
+        except Exception as e:
+            results["failed"].append({
+                "line": line_num,
+                "username": username,
+                "error": str(e)
+            })
+    
+    return {
+        "success": True,
+        "imported_count": len(results["success"]),
+        "failed_count": len(results["failed"]),
+        "total": results["total"],
+        "details": results
+    }
+
+
 @app.get("/admin/tags/available")
 async def get_available_tags_admin(
     tag_type: Optional[str] = None,

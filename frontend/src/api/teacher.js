@@ -41,6 +41,14 @@ const teacherApi = {
     )
   },
 
+  // Bulk import courses
+  bulkImportCourses(accessToken, coursesData) {
+    return api.post('/teacher/courses/bulk-import',
+      coursesData,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
   // Remove student from course
   removeStudent(accessToken, courseId, studentId) {
     return api.post('/teacher/student/remove',

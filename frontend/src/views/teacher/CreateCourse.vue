@@ -1,6 +1,12 @@
 <template>
   <div>
-    <h1>Create New Course</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h1>Create New Course</h1>
+      <a-button @click="showImportModal">
+        <template #icon><UploadOutlined /></template>
+        批量导入 / Bulk Import
+      </a-button>
+    </div>
     <a-form :model="form" @finish="handleSubmit" layout="vertical" style="max-width: 600px">
       <a-form-item label="Course Name" name="course_name" :rules="[{ required: true }]">
         <a-input v-model:value="form.course_name" />
@@ -75,6 +81,33 @@
         </a-space>
       </a-form-item>
     </a-form>
+
+    <!-- Import Modal -->
+    <a-modal
+      v-model:open="importModalVisible"
+      title="批量导入课程 / Bulk Import Courses"
+      @ok="handleImportCourses"
+      @cancel="resetImportForm"
+      :confirm-loading="importLoading"
+      width="700px"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="CSV 数据 / CSV Data">
+          <a-textarea
+            v-model:value="importText"
+            placeholder="格式 / Format: course_name,course_credit,course_type,course_location,course_capacity,course_time_begin,course_time_end,tag1;tag2;tag3&#10;例如 / Example:&#10;数学,3,required,A101,30,800,950,math;science&#10;英语,3,elective,B202,25,1000,1150,english;language"
+            :rows="12"
+          />
+        </a-form-item>
+        <a-alert
+          message="格式说明 / Format"
+          description="每行一门课程，格式为：课程名,学分,类型(required/elective),地点,容量,开始时间,结束时间,标签1;标签2;标签3。时间格式为24小时制数字，例如800表示8:00，1350表示13:50。Each line: course_name,credits,type,location,capacity,time_begin,time_end,tag1;tag2;tag3"
+          type="info"
+          show-icon
+          style="margin-top: 8px;"
+        />
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -82,6 +115,7 @@
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
+import { UploadOutlined } from '@ant-design/icons-vue'
 import { useAuthStore } from '@/store/auth'
 import teacherApi from '@/api/teacher'
 import dayjs from 'dayjs'
@@ -103,6 +137,11 @@ const weekDays = [
 ]
 
 const selectedDays = ref([])
+
+// Import modal state
+const importModalVisible = ref(false)
+const importLoading = ref(false)
+const importText = ref('')
 
 const form = ref({
   course_name: '',
@@ -165,6 +204,76 @@ const handleSubmit = async () => {
     message.error(error.message || 'Failed to create course')
   } finally {
     loading.value = false
+  }
+}
+
+const showImportModal = () => {
+  importModalVisible.value = true
+}
+
+const resetImportForm = () => {
+  importText.value = ''
+  importModalVisible.value = false
+}
+
+const handleImportCourses = async () => {
+  if (!importText.value || !importText.value.trim()) {
+    message.warning('请输入CSV数据')
+    return
+  }
+
+  importLoading.value = true
+  try {
+    // Parse CSV and create course objects
+    const lines = importText.value.trim().split('\n')
+    const coursesData = []
+
+    for (const line of lines) {
+      if (!line.trim()) continue
+
+      const parts = line.split(',').map(p => p.trim())
+      if (parts.length < 7) {
+        message.error(`Invalid line format: ${line}`)
+        continue
+      }
+
+      const tags = parts.length > 7 && parts[7] ? parts[7].split(';').map(t => t.trim()).filter(t => t) : []
+
+      coursesData.push({
+        course_name: parts[0],
+        course_credit: parseFloat(parts[1]) || 3,
+        course_type: parts[2] || 'elective',
+        course_location: parts[3] || 'TBD',
+        course_capacity: parseInt(parts[4]) || 30,
+        course_time_begin: parseInt(parts[5]) || 800,
+        course_time_end: parseInt(parts[6]) || 950,
+        course_tags: tags,
+        course_schedule: {},
+        course_notes: '',
+        course_cost: 0,
+      })
+    }
+
+    if (coursesData.length === 0) {
+      message.error('No valid courses found in CSV')
+      return
+    }
+
+    const result = await teacherApi.bulkImportCourses(authStore.accessToken?.value || authStore.accessToken, coursesData)
+
+    if (result.error_count > 0) {
+      message.warning(`导入完成: ${result.imported_count} 成功, ${result.error_count} 失败`)
+      console.log('Import errors:', result.errors)
+    } else {
+      message.success(`成功导入 ${result.imported_count} 门课程`)
+    }
+
+    resetImportForm()
+    router.push('/teacher/courses')
+  } catch (error) {
+    message.error('导入失败: ' + (error.response?.data?.detail || error.message))
+  } finally {
+    importLoading.value = false
   }
 }
 </script>
