@@ -12,6 +12,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!accessToken.value)
   const userType = computed(() => user.value?.user_type || null)
   const username = computed(() => user.value?.username || null)
+  const has2FA = computed(() => user.value?.has_2fa || false)
 
   function setTokens(access, refresh) {
     accessToken.value = access
@@ -217,6 +218,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     userType,
     username,
+    has2FA,
     login,
     adminLogin,
     verify2FA,

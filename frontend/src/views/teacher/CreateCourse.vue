@@ -20,11 +20,35 @@
       <a-form-item label="Capacity" name="course_capacity" :rules="[{ required: true }]">
         <a-input-number v-model:value="form.course_capacity" :min="1" style="width: 100%" />
       </a-form-item>
-      <a-form-item label="Time Begin" name="course_time_begin" :rules="[{ required: true }]">
-        <a-input-number v-model:value="form.course_time_begin" style="width: 100%" />
+      <a-form-item label="Time Begin" name="course_time_begin" :rules="[{ required: true, message: 'Please select start time' }]">
+        <a-time-picker
+          v-model:value="form.course_time_begin"
+          format="HH:mm"
+          :minuteStep="5"
+          style="width: 100%"
+          placeholder="Select start time"
+        />
       </a-form-item>
-      <a-form-item label="Time End" name="course_time_end" :rules="[{ required: true }]">
-        <a-input-number v-model:value="form.course_time_end" style="width: 100%" />
+      <a-form-item label="Time End" name="course_time_end" :rules="[{ required: true, message: 'Please select end time' }]">
+        <a-time-picker
+          v-model:value="form.course_time_end"
+          format="HH:mm"
+          :minuteStep="5"
+          style="width: 100%"
+          placeholder="Select end time"
+        />
+      </a-form-item>
+      <a-form-item label="Course Schedule" name="course_schedule">
+        <div style="margin-bottom: 8px; color: #666; font-size: 12px;">
+          Select the days when this course is scheduled
+        </div>
+        <a-checkbox-group v-model:value="selectedDays" style="width: 100%">
+          <a-row>
+            <a-col :span="8" v-for="day in weekDays" :key="day.value">
+              <a-checkbox :value="day.value">{{ day.label }}</a-checkbox>
+            </a-col>
+          </a-row>
+        </a-checkbox-group>
       </a-form-item>
       <a-form-item label="Course Tags" name="course_tags">
         <a-select 
@@ -55,15 +79,30 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/store/auth'
 import teacherApi from '@/api/teacher'
+import dayjs from 'dayjs'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const loading = ref(false)
+
+// Note: keep time values inside the form model so a-form can validate them
+
+const weekDays = [
+  { label: 'Monday', value: 'monday' },
+  { label: 'Tuesday', value: 'tuesday' },
+  { label: 'Wednesday', value: 'wednesday' },
+  { label: 'Thursday', value: 'thursday' },
+  { label: 'Friday', value: 'friday' },
+  { label: 'Saturday', value: 'saturday' },
+  { label: 'Sunday', value: 'sunday' },
+]
+
+const selectedDays = ref([])
 
 const form = ref({
   course_name: '',
@@ -71,18 +110,55 @@ const form = ref({
   course_type: 'required',
   course_location: '',
   course_capacity: 30,
-  course_time_begin: 800,
-  course_time_end: 950,
   course_teacher_id: authStore.user?.user_id || 0,
+  course_schedule: {},
   course_tags: [],
   course_notes: '',
   course_cost: 0,
+  // time fields stored as dayjs objects for the time pickers
+  course_time_begin: dayjs('08:00', 'HH:mm'),
+  course_time_end: dayjs('09:50', 'HH:mm'),
 })
 
+// Update course_schedule based on selected days
+watch(selectedDays, (newDays) => {
+  const schedule = {}
+  newDays.forEach(day => {
+    schedule[day] = [1] // Default to period 1, can be extended later
+  })
+  form.value.course_schedule = schedule
+}, { deep: true })
+
+// Convert time from dayjs to integer format (e.g., "08:00" -> 800)
+const timeToInt = (time) => {
+  if (!time) return 0
+  const hour = time.hour()
+  const minute = time.minute()
+  return hour * 100 + minute
+}
+
 const handleSubmit = async () => {
+  // Validate time range
+  if (form.value.course_time_begin && form.value.course_time_end) {
+    if (
+      form.value.course_time_end.isBefore(form.value.course_time_begin) ||
+      form.value.course_time_end.isSame(form.value.course_time_begin)
+    ) {
+      message.error('End time must be after start time')
+      return
+    }
+  }
+
   loading.value = true
   try {
-  await teacherApi.createCourse(authStore.accessToken?.value || authStore.accessToken, form.value)
+    // Convert time picker values to integer format
+    const courseData = {
+      ...form.value,
+      course_time_begin: timeToInt(form.value.course_time_begin),
+      course_time_end: timeToInt(form.value.course_time_end),
+    }
+
+    await teacherApi.createCourse(authStore.accessToken?.value || authStore.accessToken, courseData)
     message.success('Course created successfully')
     router.push('/teacher/courses')
   } catch (error) {

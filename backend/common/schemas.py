@@ -108,6 +108,7 @@ class UserResponse(BaseModel):
     username: str
     user_type: str
     is_active: bool
+    has_2fa: bool = False
     created_at: datetime
 
     class Config:

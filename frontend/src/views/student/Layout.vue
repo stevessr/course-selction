@@ -28,6 +28,9 @@
           <a-menu-item key="schedule" @click="$router.push('/student/schedule')">
             <span>Schedule</span>
           </a-menu-item>
+          <a-menu-item key="settings" @click="$router.push('/student/settings')">
+            <span>Settings</span>
+          </a-menu-item>
         </a-menu>
       </a-layout-sider>
       
@@ -54,6 +57,7 @@ watch(() => route.path, (path) => {
   if (path.includes('courses')) selectedKeys.value = ['courses']
   else if (path.includes('selected')) selectedKeys.value = ['selected']
   else if (path.includes('schedule')) selectedKeys.value = ['schedule']
+  else if (path.includes('settings')) selectedKeys.value = ['settings']
 })
 
 const handleLogout = async () => {

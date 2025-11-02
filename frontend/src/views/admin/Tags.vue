@@ -34,6 +34,8 @@
                     mode="tags"
                     placeholder="输入标签 / Enter tags"
                     style="width: 300px;"
+                    :options="availableUserTags.map(tag => ({ label: tag, value: tag }))"
+                    @search="handleUserTagSearch"
                   />
                   
                   <a-button type="primary" @click="addUserTags" :loading="userTagsLoading">
@@ -78,10 +80,28 @@
             </a-space>
           </a-card>
 
+          <!-- Filter Section -->
+          <div style="margin-bottom: 16px;">
+            <a-space>
+              <span>按标签筛选 / Filter by Tag:</span>
+              <a-select
+                v-model:value="userTagFilter"
+                placeholder="全部 / All"
+                style="width: 200px;"
+                allow-clear
+              >
+                <a-select-option :value="null">全部 / All</a-select-option>
+                <a-select-option v-for="tagStat in userTagsStats" :key="tagStat.tag" :value="tagStat.tag">
+                  {{ tagStat.tag }} ({{ tagStat.count }})
+                </a-select-option>
+              </a-select>
+            </a-space>
+          </div>
+
           <!-- Users with Tags Table -->
           <a-table
             :columns="userTagsColumns"
-            :data-source="usersWithTags"
+            :data-source="filteredUsersWithTags"
             :loading="userTagsTableLoading"
             :pagination="userTagsPagination"
             @change="handleUserTagsTableChange"
@@ -124,6 +144,8 @@
                     mode="tags"
                     placeholder="输入标签 / Enter tags"
                     style="width: 300px;"
+                    :options="availableCourseTags.map(tag => ({ label: tag, value: tag }))"
+                    @search="handleCourseTagSearch"
                   />
                   
                   <a-button type="primary" @click="addCourseTags" :loading="courseTagsLoading">
@@ -168,10 +190,36 @@
             </a-space>
           </a-card>
 
+          <!-- Filter and Search Section -->
+          <div style="margin-bottom: 16px;">
+            <a-space>
+              <span>按标签筛选 / Filter by Tag:</span>
+              <a-select
+                v-model:value="courseTagFilter"
+                placeholder="全部 / All"
+                style="width: 200px;"
+                allow-clear
+              >
+                <a-select-option :value="null">全部 / All</a-select-option>
+                <a-select-option v-for="tagStat in courseTagsStats" :key="tagStat.tag" :value="tagStat.tag">
+                  {{ tagStat.tag }} ({{ tagStat.count }})
+                </a-select-option>
+              </a-select>
+              
+              <span style="margin-left: 16px;">搜索课程 / Search Course:</span>
+              <a-input-search
+                v-model:value="courseSearchText"
+                placeholder="输入课程名称 / Enter course name"
+                style="width: 300px;"
+                allow-clear
+              />
+            </a-space>
+          </div>
+
           <!-- Courses with Tags Table -->
           <a-table
             :columns="courseTagsColumns"
-            :data-source="coursesWithTags"
+            :data-source="filteredCoursesWithTags"
             :loading="courseTagsTableLoading"
             :pagination="courseTagsPagination"
             @change="handleCourseTagsTableChange"
@@ -286,11 +334,16 @@ const userTagsTableLoading = ref(false)
 const courseTagsTableLoading = ref(false)
 const batchOperationLoading = ref(false)
 
+// Available tags for autocomplete
+const availableUserTags = ref([])
+const availableCourseTags = ref([])
+
 // User Tags
 const users = ref([])
 const selectedUserIds = ref([])
 const newUserTags = ref([])
 const usersWithTags = ref([])
+const userTagFilter = ref(null) // Filter users by tag
 const userTagsPagination = reactive({
   current: 1,
   pageSize: 20,
@@ -302,6 +355,8 @@ const courses = ref([])
 const selectedCourseIds = ref([])
 const newCourseTags = ref([])
 const coursesWithTags = ref([])
+const courseTagFilter = ref(null) // Filter courses by tag
+const courseSearchText = ref('') // Search courses by name
 const courseTagsPagination = reactive({
   current: 1,
   pageSize: 20,
@@ -338,11 +393,18 @@ const courseTagsColumns = [
 
 // Computed statistics
 const userTagsStats = computed(() => {
+  if (!usersWithTags.value || !Array.isArray(usersWithTags.value)) {
+    return []
+  }
   const tagMap = new Map()
   usersWithTags.value.forEach(user => {
-    (user.student_tags || []).forEach(tag => {
-      tagMap.set(tag, (tagMap.get(tag) || 0) + 1)
-    })
+    if (user && user.student_tags && Array.isArray(user.student_tags)) {
+      user.student_tags.forEach(tag => {
+        if (tag) {
+          tagMap.set(tag, (tagMap.get(tag) || 0) + 1)
+        }
+      })
+    }
   })
   return Array.from(tagMap.entries())
     .map(([tag, count]) => ({ tag, count }))
@@ -350,18 +412,77 @@ const userTagsStats = computed(() => {
 })
 
 const courseTagsStats = computed(() => {
+  if (!coursesWithTags.value || !Array.isArray(coursesWithTags.value)) {
+    return []
+  }
   const tagMap = new Map()
   coursesWithTags.value.forEach(course => {
-    (course.course_tags || []).forEach(tag => {
-      tagMap.set(tag, (tagMap.get(tag) || 0) + 1)
-    })
+    if (course && course.course_tags && Array.isArray(course.course_tags)) {
+      course.course_tags.forEach(tag => {
+        if (tag) {
+          tagMap.set(tag, (tagMap.get(tag) || 0) + 1)
+        }
+      })
+    }
   })
   return Array.from(tagMap.entries())
     .map(([tag, count]) => ({ tag, count }))
     .sort((a, b) => b.count - a.count)
 })
 
+// Filtered users with tags
+const filteredUsersWithTags = computed(() => {
+  if (!usersWithTags.value || !Array.isArray(usersWithTags.value)) {
+    return []
+  }
+  if (!userTagFilter.value) {
+    return usersWithTags.value
+  }
+  return usersWithTags.value.filter(user => {
+    return user && user.student_tags && Array.isArray(user.student_tags) && user.student_tags.includes(userTagFilter.value)
+  })
+})
+
+// Filtered courses with tags
+const filteredCoursesWithTags = computed(() => {
+  if (!coursesWithTags.value || !Array.isArray(coursesWithTags.value)) {
+    return []
+  }
+  let filtered = coursesWithTags.value
+  
+  // Filter by tag
+  if (courseTagFilter.value) {
+    filtered = filtered.filter(course => {
+      return course && course.course_tags && Array.isArray(course.course_tags) && course.course_tags.includes(courseTagFilter.value)
+    })
+  }
+  
+  // Filter by search text
+  if (courseSearchText.value) {
+    const searchLower = courseSearchText.value.toLowerCase()
+    filtered = filtered.filter(course => {
+      return course && course.course_name && course.course_name.toLowerCase().includes(searchLower)
+    })
+  }
+  
+  return filtered
+})
+
 // Methods
+const loadAvailableTags = async () => {
+  try {
+    // Load user tags
+    const userTagsResponse = await adminApi.getAvailableTags(authStore.accessToken, 'user')
+    availableUserTags.value = (userTagsResponse.tags || []).map(t => t.tag_name)
+    
+    // Load course tags
+    const courseTagsResponse = await adminApi.getAvailableTags(authStore.accessToken, 'course')
+    availableCourseTags.value = (courseTagsResponse.tags || []).map(t => t.tag_name)
+  } catch (error) {
+    console.error('Failed to load available tags:', error)
+  }
+}
+
 const loadUsers = async () => {
   try {
     const response = await adminApi.listUsers(authStore.accessToken, 'student', 1, 1000)
@@ -434,6 +555,7 @@ const addUserTags = async () => {
     message.success(`成功为 ${selectedUserIds.value.length} 个用户添加标签`)
     selectedUserIds.value = []
     newUserTags.value = []
+    await loadAvailableTags()
     await loadUsers()
     await loadUsersWithTags()
   } catch (error) {
@@ -455,6 +577,7 @@ const removeUserTag = async (tag) => {
     }
     
     message.success(`已从 ${affectedUsers.length} 个用户中移除标签 "${tag}"`)
+    await loadAvailableTags()
     await loadUsers()
     await loadUsersWithTags()
   } catch (error) {
@@ -484,6 +607,7 @@ const addCourseTags = async () => {
     message.success(`成功为 ${selectedCourseIds.value.length} 门课程添加标签`)
     selectedCourseIds.value = []
     newCourseTags.value = []
+    await loadAvailableTags()
     await loadCourses()
     await loadCoursesWithTags()
   } catch (error) {
@@ -508,6 +632,7 @@ const removeCourseTag = async (tag) => {
     }
     
     message.success(`已从 ${affectedCourses.length} 门课程中移除标签 "${tag}"`)
+    await loadAvailableTags()
     await loadCourses()
     await loadCoursesWithTags()
   } catch (error) {
@@ -563,6 +688,7 @@ const handleBatchReplaceUserTag = async () => {
     batchReplaceUserTagModalVisible.value = false
     batchReplaceUserTagOld.value = null
     batchReplaceUserTagNew.value = ''
+    await loadAvailableTags()
     await loadUsers()
     await loadUsersWithTags()
   } catch (error) {
@@ -622,6 +748,7 @@ const handleBatchReplaceCourseTag = async () => {
     batchReplaceCourseTagModalVisible.value = false
     batchReplaceCourseTagOld.value = null
     batchReplaceCourseTagNew.value = ''
+    await loadAvailableTags()
     await loadCourses()
     await loadCoursesWithTags()
   } catch (error) {
@@ -661,8 +788,19 @@ const handleCourseSearch = (value) => {
   // Implement search if needed
 }
 
+const handleUserTagSearch = (value) => {
+  // This is called when typing in the user tags select
+  // The autocomplete will filter automatically based on available options
+}
+
+const handleCourseTagSearch = (value) => {
+  // This is called when typing in the course tags select
+  // The autocomplete will filter automatically based on available options
+}
+
 // Lifecycle
 onMounted(() => {
+  loadAvailableTags()
   loadUsers()
   loadUsersWithTags()
   loadCourses()

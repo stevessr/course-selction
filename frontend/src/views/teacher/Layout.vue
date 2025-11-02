@@ -25,6 +25,9 @@
           <a-menu-item key="create" @click="$router.push('/teacher/create')">
             Create Course
           </a-menu-item>
+          <a-menu-item key="settings" @click="$router.push('/teacher/settings')">
+            Settings
+          </a-menu-item>
         </a-menu>
       </a-layout-sider>
       
@@ -36,14 +39,21 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/store/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const selectedKeys = ref(['courses'])
+
+watch(() => route.path, (path) => {
+  if (path.includes('courses')) selectedKeys.value = ['courses']
+  else if (path.includes('create') || path.includes('edit')) selectedKeys.value = ['create']
+  else if (path.includes('settings')) selectedKeys.value = ['settings']
+})
 
 const handleLogout = async () => {
   await authStore.logout()

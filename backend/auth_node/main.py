@@ -465,7 +465,7 @@ async def login_no_2fa(
     authorization: str = Header(..., alias="Authorization"),
     db: Session = Depends(get_db)
 ):
-    """Login without 2FA for users who have 2FA disabled"""
+    """Login without 2FA for teachers only (students must have 2FA)"""
     try:
         refresh_token = authorization.replace("Bearer ", "")
         payload = decode_token(refresh_token)
@@ -477,9 +477,12 @@ async def login_no_2fa(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Check if user has 2FA disabled
-        # Only students with 2FA enabled are restricted from this endpoint
-        if (get_user_type(user) == "student" and has_2fa(user)):
+        # Students MUST have 2FA enabled - reject if student tries this endpoint
+        if get_user_type(user) == "student":
+            raise HTTPException(status_code=403, detail="Students must set up 2FA before logging in")
+        
+        # Only teachers without 2FA can use this endpoint
+        if get_user_type(user) == "teacher" and has_2fa(user):
             raise HTTPException(status_code=400, detail="User has 2FA enabled, cannot use this endpoint")
         
         # Generate access token with different expiration based on user type
@@ -716,6 +719,7 @@ async def get_user_info(
                 username=user.username,
                 user_type=get_user_type(user),
                 is_active=is_active(user),
+                has_2fa=has_2fa(user),
                 created_at=user.created_at
             )
     except Exception as e:
@@ -996,13 +1000,35 @@ async def list_users(
         else:
             db_students = query_students.order_by(Student.created_at.desc()).all()
         
+        # Fetch student tags from data node
+        data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+        internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+        
         for student in db_students:
+            student_tags = []
+            try:
+                # Fetch student data from data node to get tags
+                async with httpx.AsyncClient() as client:
+                    headers = {"Internal-Token": internal_token}
+                    response = await client.get(
+                        f"{data_node_url}/get/student",
+                        params={"student_id": student.student_id},
+                        headers=headers
+                    )
+                    if response.status_code == 200:
+                        student_data = response.json()
+                        student_tags = student_data.get("student_tags", [])
+            except Exception as e:
+                # If we can't fetch tags, continue with empty list
+                pass
+            
             all_users_data.append({
                 "user_id": student.student_id,
                 "username": student.username,
                 "user_type": "student",
                 "is_active": student.is_active,
                 "totp_secret": student.totp_secret,
+                "student_tags": student_tags,
                 "created_at": student.created_at.isoformat() if student.created_at else None,
                 "updated_at": student.updated_at.isoformat() if student.updated_at else None,
             })
@@ -1098,6 +1124,7 @@ async def add_user_endpoint(
                 username=username,
                 password_hash=get_password_hash(password),
                 totp_secret=generate_totp_secret(),
+                has_2fa=False,  # Student needs to complete 2FA setup
                 is_active=True,
             )
             db.add(new_student)
@@ -1238,15 +1265,37 @@ async def toggle_user_status_endpoint(
     current_admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Toggle user active status (admin only)"""
+    """Toggle user active status (admin only). Accepts optional user_type to avoid ID collisions."""
     user_id = data.get("user_id")
     is_active = data.get("is_active")
+    user_type = data.get("user_type")
     
     if user_id is None or is_active is None:
         raise HTTPException(status_code=400, detail="user_id and is_active required")
     
-    # Determine user type to query the correct table
-    # We'll try each table based on the ID
+    # If caller specifies user_type, use it directly to avoid cross-table ID collisions
+    if user_type == "student":
+        student = db.query(Student).filter(Student.student_id == user_id).first()
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+        student.is_active = is_active
+        db.commit()
+        return {"success": True, "message": f"Student {'activated' if is_active else 'deactivated'} successfully"}
+    elif user_type == "teacher":
+        teacher = db.query(Teacher).filter(Teacher.teacher_id == user_id).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Teacher not found")
+        teacher.is_active = is_active
+        db.commit()
+        return {"success": True, "message": f"Teacher {'activated' if is_active else 'deactivated'} successfully"}
+    elif user_type == "admin":
+        admin = db.query(Admin).filter(Admin.admin_id == user_id).first()
+        if not admin:
+            raise HTTPException(status_code=404, detail="Admin not found")
+        # Admin model may not have is_active; treat toggle as unsupported for admins
+        raise HTTPException(status_code=400, detail="Toggling admin status is not supported")
+    
+    # Fallback: detect by probing tables in order (may be ambiguous if IDs overlap)
     student = db.query(Student).filter(Student.student_id == user_id).first()
     if student:
         student.is_active = is_active
@@ -1261,9 +1310,8 @@ async def toggle_user_status_endpoint(
     
     admin = db.query(Admin).filter(Admin.admin_id == user_id).first()
     if admin:
-        admin.is_active = is_active
-        db.commit()
-        return {"success": True, "message": f"Admin {'activated' if is_active else 'deactivated'} successfully"}
+        # Admin model may not have is_active; return a clear error
+        raise HTTPException(status_code=400, detail="Toggling admin status is not supported")
     
     raise HTTPException(status_code=404, detail="User not found")
 
@@ -1274,19 +1322,27 @@ async def reset_user_password_endpoint(
     current_admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Reset user password (admin only) - generates new random password"""
+    """Reset user password (admin only) - can set custom password or generate random one"""
     import secrets
     import string
     
     username = data.get("username")
     user_type = data.get("user_type")
+    custom_password = data.get("new_password")  # Optional custom password
     
     if not username or not user_type:
         raise HTTPException(status_code=400, detail="username and user_type required")
     
-    # Generate a secure random password (12 characters)
-    alphabet = string.ascii_letters + string.digits + "!@#$%&*"
-    new_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+    # Use custom password if provided, otherwise generate random
+    if custom_password:
+        if len(custom_password) < 6:
+            raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+        new_password = custom_password
+    else:
+        # Generate a secure random password (12 characters)
+        alphabet = string.ascii_letters + string.digits + "!@#$%&*"
+        new_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+    
     new_password_hash = get_password_hash(new_password)
     
     # Update password in the appropriate table
@@ -1343,17 +1399,56 @@ async def update_student_tags_endpoint(
     try:
         async with httpx.AsyncClient() as client:
             headers = {"Internal-Token": internal_token}
-            payload = {
-                "student_id": student_id,
-                "student_tags": student_tags
-            }
-            response = await client.post(f"{data_node_url}/update/student", params={"student_id": student_id}, json=payload, headers=headers)
+            # data_node expects student_id and student_tags as query params;
+            # student_tags is a List[str] query param (repeated keys)
+            params = {"student_id": student_id, "student_tags": student_tags}
+            response = await client.post(
+                f"{data_node_url}/update/student",
+                params=params,
+                headers=headers
+            )
             if response.status_code != 200:
                 raise HTTPException(status_code=500, detail=f"Failed to update student tags: {response.text}")
     except httpx.HTTPError as e:
         raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
     
     return {"success": True, "message": "Student tags updated successfully"}
+
+
+@app.get("/admin/tags/available")
+async def get_available_tags_admin(
+    tag_type: Optional[str] = None,
+    current_admin: Admin = Depends(get_current_admin)
+):
+    """Get available tags for autocomplete (admin only)"""
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            headers = {"Internal-Token": internal_token}
+            params = {}
+            if tag_type:
+                params["tag_type"] = tag_type
+            
+            response = await client.get(
+                f"{data_node_url}/tags/available",
+                params=params,
+                headers=headers
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"Failed to get available tags: {response.text}"
+                )
+            
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error contacting data node: {str(e)}"
+        )
 
 
 # Admin course management endpoints

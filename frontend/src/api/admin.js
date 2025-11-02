@@ -34,6 +34,18 @@ const adminApi = {
     )
   },
 
+  // Reset user password
+  resetUserPassword(accessToken, username, userType, newPassword = null) {
+    const data = { username, user_type: userType }
+    if (newPassword) {
+      data.new_password = newPassword
+    }
+    return api.post('/auth/admin/user/reset-password',
+      data,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
   // Toggle user status (activate/deactivate)
   toggleUserStatus(accessToken, userId, isActive) {
     return api.post('/auth/admin/user/toggle-status',
@@ -66,6 +78,14 @@ const adminApi = {
       { student_id: studentId, student_tags: studentTags },
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
+  },
+
+  // Get available tags for autocomplete
+  getAvailableTags(accessToken, tagType = null) {
+    return api.get('/auth/admin/tags/available', {
+      params: tagType ? { tag_type: tagType } : {},
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
   },
 
   // Course Management (Admin access)

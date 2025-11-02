@@ -1,5 +1,5 @@
 """Data Node - Course data management service"""
-from fastapi import FastAPI, HTTPException, Depends, Header, status
+from fastapi import FastAPI, HTTPException, Depends, Header, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import Optional, List
@@ -301,7 +301,7 @@ async def add_student(
 async def update_student(
     student_id: int,
     student_name: Optional[str] = None,
-    student_tags: Optional[List[str]] = None,
+    student_tags: Optional[List[str]] = Query(None),
     db: Session = Depends(get_db),
     _: None = Depends(verify_internal_token_header)
 ):
@@ -313,7 +313,18 @@ async def update_student(
     if student_name is not None:
         db_student.student_name = student_name
     if student_tags is not None:
-        db_student.student_tags = student_tags
+        # Ensure it's a list (FastAPI may pass a single item as str in some environments)
+        if isinstance(student_tags, str):
+            student_tags = [student_tags]
+        db_student.student_tags = list(student_tags)
+        
+        # Upsert into AvailableTag table (tag_type='user') without over-counting
+        existing_names = set(
+            t.tag_name for t in db.query(AvailableTag).filter(AvailableTag.tag_type == 'user').all()
+        )
+        for tag_name in db_student.student_tags:
+            if tag_name not in existing_names:
+                db.add(AvailableTag(tag_name=tag_name, tag_type='user', usage_count=1))
     
     db_student.updated_at = datetime.now(timezone.utc)
     db.commit()

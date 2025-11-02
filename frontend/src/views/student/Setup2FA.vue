@@ -119,7 +119,7 @@ const verifyForm = ref({
 
 // Generate 2FA secret on mount
 onMounted(async () => {
-  if (!authStore.refreshToken?.value) {
+  if (!authStore.refreshToken) {
     message.error('请先登录 / Please login first')
     router.push('/login/student')
     return
@@ -130,7 +130,7 @@ onMounted(async () => {
     const response = await fetch('/api/auth/setup/2fa/v1', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${authStore.refreshToken.value}`,
+        'Authorization': `Bearer ${authStore.refreshToken}`,
       },
     })
 
@@ -182,7 +182,7 @@ const handleVerify = async () => {
     const response = await fetch('/api/auth/setup/2fa/v2', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${authStore.refreshToken.value}`,
+        'Authorization': `Bearer ${authStore.refreshToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

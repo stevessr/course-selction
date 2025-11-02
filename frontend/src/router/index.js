@@ -63,6 +63,11 @@ const routes = [
         name: 'StudentSchedule',
         component: () => import('@/views/student/Schedule.vue'),
       },
+      {
+        path: 'settings',
+        name: 'StudentSettings',
+        component: () => import('@/views/student/Settings.vue'),
+      },
     ],
   },
   {
@@ -80,6 +85,16 @@ const routes = [
         path: 'create',
         name: 'TeacherCreateCourse',
         component: () => import('@/views/teacher/CreateCourse.vue'),
+      },
+      {
+        path: 'edit/:id',
+        name: 'TeacherEditCourse',
+        component: () => import('@/views/teacher/EditCourse.vue'),
+      },
+      {
+        path: 'settings',
+        name: 'TeacherSettings',
+        component: () => import('@/views/teacher/Settings.vue'),
       },
     ],
   },
@@ -138,6 +153,13 @@ router.beforeEach((to, from, next) => {
       next('/admin/users')
     } else {
       next('/login')
+    }
+  } else if (authStore.isAuthenticated && authStore.userType === 'student') {
+    // Force students to set up 2FA if not already enabled
+    if (!authStore.has2FA && to.path !== '/student/settings' && to.path !== '/student/setup-2fa' && to.meta.requiresAuth) {
+      next('/student/settings')
+    } else {
+      next()
     }
   } else {
     next()
