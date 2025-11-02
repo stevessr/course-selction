@@ -37,6 +37,12 @@ const routes = [
     meta: { requiresAuth: false },
   },
   {
+    path: '/student/setup-2fa',
+    name: 'StudentSetup2FA',
+    component: () => import('@/views/student/Setup2FA.vue'),
+    meta: { requiresAuth: false },
+  },
+  {
     path: '/student',
     name: 'Student',
     component: () => import('@/views/student/Layout.vue'),
@@ -92,6 +98,11 @@ const routes = [
         path: 'codes',
         name: 'AdminCodes',
         component: () => import('@/views/admin/Codes.vue'),
+      },
+      {
+        path: 'reset-codes',
+        name: 'AdminResetCodes',
+        component: () => import('@/views/admin/ResetCodes.vue'),
       },
     ],
   },

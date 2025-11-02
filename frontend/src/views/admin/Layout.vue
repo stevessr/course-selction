@@ -25,6 +25,9 @@
           <a-menu-item key="codes" @click="$router.push('/admin/codes')">
             Registration Codes
           </a-menu-item>
+          <a-menu-item key="reset-codes" @click="$router.push('/admin/reset-codes')">
+            Reset Codes
+          </a-menu-item>
         </a-menu>
       </a-layout-sider>
       

@@ -512,6 +512,93 @@ async def logout(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.post("/setup/2fa/v1")
+async def setup_2fa_v1(
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db)
+):
+    """Setup 2FA for student without 2FA - phase 1: Generate TOTP secret"""
+    try:
+        refresh_token = authorization.replace("Bearer ", "")
+        payload = decode_token(refresh_token)
+        
+        if not payload or payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Only students can setup 2FA
+        if get_user_type(user) != "student":
+            raise HTTPException(status_code=400, detail="Only students can setup 2FA")
+        
+        # Check if user already has 2FA
+        if has_2fa(user):
+            raise HTTPException(status_code=400, detail="User already has 2FA enabled")
+        
+        # Generate new TOTP secret
+        new_secret = generate_totp_secret()
+        
+        # Get TOTP URI for QR code
+        totp_uri = get_totp_uri(new_secret, user.username)
+        
+        return {
+            "totp_secret": new_secret,
+            "totp_uri": totp_uri,
+            "message": "Please scan QR code to setup 2FA."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
+@app.post("/setup/2fa/v2")
+async def setup_2fa_v2(
+    setup_data: dict,
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db)
+):
+    """Setup 2FA for student - phase 2: Verify TOTP and save secret"""
+    try:
+        refresh_token = authorization.replace("Bearer ", "")
+        payload = decode_token(refresh_token)
+        
+        if not payload or payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Only students can setup 2FA
+        if get_user_type(user) != "student":
+            raise HTTPException(status_code=400, detail="Only students can setup 2FA")
+        
+        # Get secret and code from request
+        totp_secret = setup_data.get("totp_secret")
+        totp_code = setup_data.get("totp_code")
+        
+        if not totp_secret or not totp_code:
+            raise HTTPException(status_code=400, detail="Missing totp_secret or totp_code")
+        
+        # Verify the TOTP code with the provided secret
+        if not verify_totp(totp_secret, totp_code):
+            raise HTTPException(status_code=400, detail="Invalid 2FA code")
+        
+        # Save the TOTP secret to the user
+        set_totp_secret(user, totp_secret)
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "2FA setup successful. Please login again."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
 @app.post("/refresh", response_model=AccessTokenResponse)
 async def refresh_access_token(
     totp_data: User2FA,
@@ -737,6 +824,43 @@ async def generate_reset_code_endpoint(
         "code": code,
         "username": user.username,
         "expires_at": expires_at
+    }
+
+
+@app.get("/admin/reset-codes")
+async def list_reset_codes(
+    page: int = 1,
+    page_size: int = 20,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """List all reset codes (admin only)"""
+    # Get total count
+    total = db.query(ResetCode).count()
+    
+    # Get paginated codes
+    db_codes = db.query(ResetCode).order_by(ResetCode.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
+    
+    codes_data = []
+    for code in db_codes:
+        # Get the username for this code
+        user = await get_user_by_id(db, code.user_id, "student")
+        username = user.username if user else "Unknown"
+        
+        codes_data.append({
+            "id": code.id,
+            "code": code.code,
+            "username": username,
+            "is_used": code.is_used,
+            "expires_at": code.expires_at.isoformat() if code.expires_at else None,
+            "created_at": code.created_at.isoformat() if code.created_at else None,
+        })
+    
+    return {
+        "codes": codes_data,
+        "total": total,
+        "page": page,
+        "page_size": page_size
     }
 
 
