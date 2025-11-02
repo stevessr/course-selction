@@ -170,11 +170,28 @@ const needsTwoFactor = ref(false)
 const resetModalVisible = ref(false)
 const resetting = ref(false)
 
-// Clear any existing tokens on mount to force fresh login
-onMounted(() => {
-  // Always start from username/password login
-  authStore.setTokens(null, null)
-  needsTwoFactor.value = false
+// Check if we have a valid refresh token on mount
+onMounted(async () => {
+  if (authStore.refreshToken) {
+    // We have a refresh token, check 2FA status
+    const statusResult = await authStore.check2FAStatus()
+
+    if (statusResult.success) {
+      if (statusResult.has_2fa) {
+        // User has 2FA enabled, show 2FA screen
+        needsTwoFactor.value = true
+      } else {
+        // Student without 2FA - they should be on setup page, not here
+        // Don't redirect, just clear tokens to show login form
+        authStore.setTokens(null, null)
+        needsTwoFactor.value = false
+      }
+    } else {
+      // Invalid token or error, clear it and show login form
+      authStore.setTokens(null, null)
+      needsTwoFactor.value = false
+    }
+  }
 })
 
 const handleLogin = async () => {

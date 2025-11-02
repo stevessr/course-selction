@@ -20,11 +20,23 @@
       <a-form-item label="Capacity" name="course_capacity" :rules="[{ required: true }]">
         <a-input-number v-model:value="form.course_capacity" :min="1" style="width: 100%" />
       </a-form-item>
-      <a-form-item label="Time Begin" name="course_time_begin" :rules="[{ required: true }]">
-        <a-input-number v-model:value="form.course_time_begin" style="width: 100%" />
+      <a-form-item label="Time Begin" name="course_time_begin" :rules="[{ required: true, message: 'Please select start time' }]">
+        <a-time-picker
+          v-model:value="timeBegin"
+          format="HH:mm"
+          :minuteStep="5"
+          style="width: 100%"
+          placeholder="Select start time"
+        />
       </a-form-item>
-      <a-form-item label="Time End" name="course_time_end" :rules="[{ required: true }]">
-        <a-input-number v-model:value="form.course_time_end" style="width: 100%" />
+      <a-form-item label="Time End" name="course_time_end" :rules="[{ required: true, message: 'Please select end time' }]">
+        <a-time-picker
+          v-model:value="timeEnd"
+          format="HH:mm"
+          :minuteStep="5"
+          style="width: 100%"
+          placeholder="Select end time"
+        />
       </a-form-item>
       <a-form-item label="Course Schedule" name="course_schedule">
         <div style="margin-bottom: 8px; color: #666; font-size: 12px;">
@@ -72,10 +84,15 @@ import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/store/auth'
 import teacherApi from '@/api/teacher'
+import dayjs from 'dayjs'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const loading = ref(false)
+
+// Time picker values (dayjs objects)
+const timeBegin = ref(dayjs('08:00', 'HH:mm'))
+const timeEnd = ref(dayjs('09:50', 'HH:mm'))
 
 const weekDays = [
   { label: 'Monday', value: 'monday' },
@@ -95,8 +112,6 @@ const form = ref({
   course_type: 'required',
   course_location: '',
   course_capacity: 30,
-  course_time_begin: 800,
-  course_time_end: 950,
   course_teacher_id: authStore.user?.user_id || 0,
   course_schedule: {},
   course_tags: [],
@@ -113,10 +128,33 @@ watch(selectedDays, (newDays) => {
   form.value.course_schedule = schedule
 }, { deep: true })
 
+// Convert time from dayjs to integer format (e.g., "08:00" -> 800)
+const timeToInt = (time) => {
+  if (!time) return 0
+  const hour = time.hour()
+  const minute = time.minute()
+  return hour * 100 + minute
+}
+
 const handleSubmit = async () => {
+  // Validate time range
+  if (timeBegin.value && timeEnd.value) {
+    if (timeEnd.value.isBefore(timeBegin.value) || timeEnd.value.isSame(timeBegin.value)) {
+      message.error('End time must be after start time')
+      return
+    }
+  }
+
   loading.value = true
   try {
-  await teacherApi.createCourse(authStore.accessToken?.value || authStore.accessToken, form.value)
+    // Convert time picker values to integer format
+    const courseData = {
+      ...form.value,
+      course_time_begin: timeToInt(timeBegin.value),
+      course_time_end: timeToInt(timeEnd.value),
+    }
+
+    await teacherApi.createCourse(authStore.accessToken?.value || authStore.accessToken, courseData)
     message.success('Course created successfully')
     router.push('/teacher/courses')
   } catch (error) {
