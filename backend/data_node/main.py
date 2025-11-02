@@ -12,6 +12,7 @@ from backend.common import (
     CourseCreate, CourseUpdate, CourseResponse,
     StudentCreate, StudentResponse,
     TeacherCreate, TeacherResponse,
+    CourseSelectionData,
     get_database_url, create_db_engine, create_session_factory, init_database,
     create_socket_server_config,
 )
@@ -374,17 +375,16 @@ async def get_teacher(
 # Course selection endpoints
 @app.post("/select/course")
 async def select_course(
-    student_id: int,
-    course_id: int,
+    selection: CourseSelectionData,
     db: Session = Depends(get_db),
     _: None = Depends(verify_internal_token_header)
 ):
     """Student selects a course"""
-    student = db.query(StudentCourseData).filter(StudentCourseData.student_id == student_id).first()
+    student = db.query(StudentCourseData).filter(StudentCourseData.student_id == selection.student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     
-    course = db.query(Course).filter(Course.course_id == course_id).first()
+    course = db.query(Course).filter(Course.course_id == selection.course_id).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
@@ -394,11 +394,11 @@ async def select_course(
     
     # Check if student already selected this course
     student_courses = student.student_courses or []
-    if course_id in student_courses:
+    if selection.course_id in student_courses:
         raise HTTPException(status_code=400, detail="Student already selected this course")
     
     # Add course to student
-    student_courses.append(course_id)
+    student_courses.append(selection.course_id)
     student.student_courses = student_courses
     student.updated_at = datetime.now(timezone.utc)
     
@@ -412,27 +412,26 @@ async def select_course(
 
 @app.post("/deselect/course")
 async def deselect_course(
-    student_id: int,
-    course_id: int,
+    selection: CourseSelectionData,
     db: Session = Depends(get_db),
     _: None = Depends(verify_internal_token_header)
 ):
     """Student deselects a course"""
-    student = db.query(StudentCourseData).filter(StudentCourseData.student_id == student_id).first()
+    student = db.query(StudentCourseData).filter(StudentCourseData.student_id == selection.student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     
-    course = db.query(Course).filter(Course.course_id == course_id).first()
+    course = db.query(Course).filter(Course.course_id == selection.course_id).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
     # Check if student has selected this course
     student_courses = student.student_courses or []
-    if course_id not in student_courses:
+    if selection.course_id not in student_courses:
         raise HTTPException(status_code=400, detail="Student has not selected this course")
     
     # Remove course from student
-    student_courses.remove(course_id)
+    student_courses.remove(selection.course_id)
     student.student_courses = student_courses
     student.updated_at = datetime.now(timezone.utc)
     

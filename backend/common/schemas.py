@@ -148,6 +148,12 @@ class CourseSelectionRequest(BaseModel):
     course_id: int = Field(..., ge=1)
 
 
+class CourseSelectionData(BaseModel):
+    """Schema for internal course selection data (used by queue_node -> data_node)"""
+    student_id: int = Field(..., ge=1)
+    course_id: int = Field(..., ge=1)
+
+
 class QueueTaskResponse(BaseModel):
     success: bool
     message: str
