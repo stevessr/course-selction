@@ -133,22 +133,21 @@ async def register_v1(
     db: Session = Depends(get_db)
 ):
     """Register user - phase 1: Create account and generate 2FA"""
-    # Verify registration code if provided
-    if user_data.registration_code:
-        reg_code = db.query(RegistrationCode).filter(
-            RegistrationCode.code == user_data.registration_code,
-            RegistrationCode.is_used == False,
-            RegistrationCode.expires_at > datetime.now(timezone.utc)
-        ).first()
-        
-        if not reg_code:
-            raise HTTPException(status_code=400, detail="Invalid or expired registration code")
-        
-        if reg_code.user_type != user_data.user_type:
-            raise HTTPException(status_code=400, detail="Registration code type mismatch")
-    else:
-        # For now, allow registration without code for testing
-        pass
+    # Verify registration code (now mandatory)
+    if not user_data.registration_code:
+        raise HTTPException(status_code=400, detail="Registration code is required")
+    
+    reg_code = db.query(RegistrationCode).filter(
+        RegistrationCode.code == user_data.registration_code,
+        RegistrationCode.is_used == False,
+        RegistrationCode.expires_at > datetime.now(timezone.utc)
+    ).first()
+    
+    if not reg_code:
+        raise HTTPException(status_code=400, detail="Invalid or expired registration code")
+    
+    if reg_code.user_type != user_data.user_type:
+        raise HTTPException(status_code=400, detail="Registration code type mismatch")
     
     # Check if user already exists in the auth database
     existing_user = await get_user_by_username(db, user_data.username, user_data.user_type)
@@ -1251,7 +1250,63 @@ async def toggle_user_status_endpoint(
         db.commit()
         return {"success": True, "message": f"Teacher {'activated' if is_active else 'deactivated'} successfully"}
     
+    admin = db.query(Admin).filter(Admin.admin_id == user_id).first()
+    if admin:
+        admin.is_active = is_active
+        db.commit()
+        return {"success": True, "message": f"Admin {'activated' if is_active else 'deactivated'} successfully"}
+    
     raise HTTPException(status_code=404, detail="User not found")
+
+
+@app.post("/admin/user/reset-password")
+async def reset_user_password_endpoint(
+    data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Reset user password (admin only) - generates new random password"""
+    import secrets
+    import string
+    
+    username = data.get("username")
+    user_type = data.get("user_type")
+    
+    if not username or not user_type:
+        raise HTTPException(status_code=400, detail="username and user_type required")
+    
+    # Generate a secure random password (12 characters)
+    alphabet = string.ascii_letters + string.digits + "!@#$%&*"
+    new_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+    new_password_hash = get_password_hash(new_password)
+    
+    # Update password in the appropriate table
+    if user_type == "student":
+        user = db.query(Student).filter(Student.username == username).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Student not found")
+        user.password_hash = new_password_hash
+    elif user_type == "teacher":
+        user = db.query(Teacher).filter(Teacher.username == username).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Teacher not found")
+        user.password_hash = new_password_hash
+    elif user_type == "admin":
+        user = db.query(Admin).filter(Admin.username == username).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Admin not found")
+        user.password_hash = new_password_hash
+    else:
+        raise HTTPException(status_code=400, detail="Invalid user type")
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Password reset successfully",
+        "new_password": new_password,
+        "username": username
+    }
 
 
 @app.post("/admin/student/update-tags")

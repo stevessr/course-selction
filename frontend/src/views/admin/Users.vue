@@ -110,6 +110,12 @@
                     </a-button>
                   </a-tooltip>
 
+                  <a-tooltip title="重置密码">
+                    <a-button size="small" @click="showResetPasswordModal(record)">
+                      <template #icon><LockOutlined /></template>
+                    </a-button>
+                  </a-tooltip>
+
                   <a-tooltip :title="record.is_active ? '停用' : '启用'">
                     <a-button
                       size="small"
@@ -567,6 +573,93 @@ bob,pass456,teacher,bob@example.com,Bob Smith</pre>
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- Reset Password Modal -->
+    <a-modal
+      v-model:open="resetPasswordModalVisible"
+      title="重置用户密码 / Reset User Password"
+      @cancel="closeResetPasswordModal"
+      :footer="null"
+      width="600px"
+    >
+      <a-form
+        v-if="!newPasswordData"
+        :label-col="{ span: 6 }"
+        :wrapper-col="{ span: 18 }"
+      >
+        <a-form-item label="用户名">
+          <a-input :value="selectedUser?.username" disabled />
+        </a-form-item>
+
+        <a-form-item label="用户类型">
+          <a-tag :color="getUserTypeTagColor(selectedUser?.user_type)">
+            {{ getUserTypeLabel(selectedUser?.user_type) }}
+          </a-tag>
+        </a-form-item>
+
+        <a-alert
+          message="警告 / Warning"
+          description="重置密码将生成一个新的随机密码。请将新密码安全地传递给用户。 / This will generate a new random password. Please securely share it with the user."
+          type="warning"
+          show-icon
+          style="margin-bottom: 16px;"
+        />
+
+        <div style="text-align: right;">
+          <a-space>
+            <a-button @click="closeResetPasswordModal">取消</a-button>
+            <a-button type="primary" :loading="resetPasswordLoading" @click="resetPassword">
+              生成新密码
+            </a-button>
+          </a-space>
+        </div>
+      </a-form>
+
+      <div v-else>
+        <a-result
+          status="success"
+          title="密码重置成功 / Password Reset Successfully"
+        >
+          <template #subTitle>
+            <div style="margin-bottom: 16px;">
+              用户 <strong>{{ newPasswordData.username }}</strong> 的新密码已生成
+            </div>
+          </template>
+          <template #extra>
+            <a-card style="text-align: left;">
+              <a-descriptions bordered :column="1">
+                <a-descriptions-item label="新密码 / New Password">
+                  <a-typography-text code copyable style="font-size: 16px; font-weight: bold;">
+                    {{ newPasswordData.new_password }}
+                  </a-typography-text>
+                </a-descriptions-item>
+              </a-descriptions>
+              
+              <div style="margin-top: 16px;">
+                <a-alert
+                  message="重要提示 / Important"
+                  description="请立即复制新密码并安全地传递给用户。关闭此窗口后将无法再次查看密码。 / Please copy this password immediately and share it securely with the user. You won't be able to view it again after closing this window."
+                  type="info"
+                  show-icon
+                />
+              </div>
+
+              <div style="text-align: right; margin-top: 16px;">
+                <a-space>
+                  <a-button @click="copyPassword">
+                    <template #icon><CopyOutlined /></template>
+                    复制密码
+                  </a-button>
+                  <a-button type="primary" @click="closeResetPasswordModal">
+                    关闭
+                  </a-button>
+                </a-space>
+              </div>
+            </a-card>
+          </template>
+        </a-result>
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -582,6 +675,8 @@ import {
   SearchOutlined,
   EyeOutlined,
   KeyOutlined,
+  LockOutlined,
+  CopyOutlined,
   StopOutlined,
   CheckCircleOutlined,
   DeleteOutlined,
@@ -633,6 +728,11 @@ const tagsLoading = ref(false)
 const tagsForm = reactive({
   tags: [],
 })
+
+// Reset Password Modal
+const resetPasswordModalVisible = ref(false)
+const resetPasswordLoading = ref(false)
+const newPasswordData = ref(null)
 
 // Table columns for all users
 const columns = [
@@ -973,6 +1073,58 @@ const handleUpdateTags = async () => {
   } finally {
     tagsLoading.value = false
   }
+}
+
+// Reset Password
+const showResetPasswordModal = (user) => {
+  selectedUser.value = user
+  newPasswordData.value = null
+  resetPasswordModalVisible.value = true
+}
+
+const resetPassword = async () => {
+  try {
+    resetPasswordLoading.value = true
+    const response = await axios.post(
+      '/api/auth/admin/user/reset-password',
+      {
+        username: selectedUser.value.username,
+        user_type: selectedUser.value.user_type,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${authStore.accessToken}`,
+        },
+      }
+    )
+    
+    newPasswordData.value = response.data
+    message.success('密码重置成功')
+  } catch (error) {
+    const errorDetail = error.response?.data?.detail || error.message
+    
+    if (error.response?.status === 401 || errorDetail?.includes('Invalid token')) {
+      message.error('登录已过期，请重新登录')
+      authStore.logout()
+    } else {
+      message.error('重置密码失败: ' + errorDetail)
+    }
+  } finally {
+    resetPasswordLoading.value = false
+  }
+}
+
+const copyPassword = () => {
+  if (newPasswordData.value?.new_password) {
+    navigator.clipboard.writeText(newPasswordData.value.new_password)
+    message.success('密码已复制到剪贴板')
+  }
+}
+
+const closeResetPasswordModal = () => {
+  resetPasswordModalVisible.value = false
+  selectedUser.value = null
+  newPasswordData.value = null
 }
 
 // Utility functions
