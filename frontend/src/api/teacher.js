@@ -10,9 +10,10 @@ const teacherApi = {
 
   // Get course detail
   getCourseDetail(accessToken, courseId) {
+    // Backend expects course_id as query param on a POST endpoint
     return api.post('/teacher/course/detail',
-      { course_id: courseId },
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+      null,
+      { params: { course_id: courseId }, headers: { Authorization: `Bearer ${accessToken}` } }
     )
   },
 
@@ -26,27 +27,25 @@ const teacherApi = {
 
   // Update course
   updateCourse(accessToken, courseId, courseData) {
+    // Backend expects course_id as query param and body as CourseUpdate
     return api.put('/teacher/course/update',
-      { course_id: courseId, ...courseData },
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+      courseData,
+      { params: { course_id: courseId }, headers: { Authorization: `Bearer ${accessToken}` } }
     )
   },
 
   // Delete course
   deleteCourse(accessToken, courseId) {
     return api.delete('/teacher/course/delete',
-      { 
-        data: { course_id: courseId },
-        headers: { Authorization: `Bearer ${accessToken}` } 
-      }
+      { params: { course_id: courseId }, headers: { Authorization: `Bearer ${accessToken}` } }
     )
   },
 
   // Remove student from course
   removeStudent(accessToken, courseId, studentId) {
     return api.post('/teacher/student/remove',
-      { course_id: courseId, student_id: studentId },
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+      null,
+      { params: { course_id: courseId, student_id: studentId }, headers: { Authorization: `Bearer ${accessToken}` } }
     )
   },
 
