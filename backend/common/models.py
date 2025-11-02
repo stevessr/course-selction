@@ -23,6 +23,9 @@ class Course(DataBase):
     course_time_start = Column(Integer, nullable=True)  # Start period (1-13)
     course_time_end = Column(Integer, nullable=True)  # End period (1-13)
 
+    # Weekdays: Array of integers 1-7 (1=Monday, 2=Tuesday, ..., 7=Sunday)
+    course_weekdays = Column(JSON, default=list)  # e.g., [1, 3, 5] for Mon, Wed, Fri
+
     # Legacy fields for backward compatibility
     course_time_begin = Column(Integer, nullable=True)
     course_time_end_legacy = Column(Integer, nullable=True)
