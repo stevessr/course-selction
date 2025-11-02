@@ -69,7 +69,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/store/auth'
@@ -92,6 +92,12 @@ const weekDays = [
 ]
 
 const selectedDays = ref([])
+
+// Parse and validate course ID from route params
+const courseId = computed(() => {
+  const id = parseInt(route.params.id)
+  return isNaN(id) || id <= 0 ? null : id
+})
 
 const form = ref({
   course_name: '',
@@ -118,9 +124,8 @@ watch(selectedDays, (newDays) => {
 
 // Load course data
 const loadCourse = async () => {
-  const courseId = parseInt(route.params.id)
-  if (!courseId) {
-    message.error('Course ID is required')
+  if (!courseId.value) {
+    message.error('Invalid course ID')
     router.push('/teacher/courses')
     return
   }
@@ -129,7 +134,7 @@ const loadCourse = async () => {
   try {
     const response = await teacherApi.getCourseDetail(
       authStore.accessToken?.value || authStore.accessToken,
-      courseId
+      courseId.value
     )
     
     // Populate form with course data
@@ -160,12 +165,16 @@ const loadCourse = async () => {
 }
 
 const handleSubmit = async () => {
-  const courseId = parseInt(route.params.id)
+  if (!courseId.value) {
+    message.error('Invalid course ID')
+    return
+  }
+  
   loading.value = true
   try {
     await teacherApi.updateCourse(
       authStore.accessToken?.value || authStore.accessToken,
-      courseId,
+      courseId.value,
       form.value
     )
     message.success('Course updated successfully')
