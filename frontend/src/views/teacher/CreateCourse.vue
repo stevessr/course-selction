@@ -26,6 +26,18 @@
       <a-form-item label="Time End" name="course_time_end" :rules="[{ required: true }]">
         <a-input-number v-model:value="form.course_time_end" style="width: 100%" />
       </a-form-item>
+      <a-form-item label="Course Schedule" name="course_schedule">
+        <div style="margin-bottom: 8px; color: #666; font-size: 12px;">
+          Select the days when this course is scheduled
+        </div>
+        <a-checkbox-group v-model:value="selectedDays" style="width: 100%">
+          <a-row>
+            <a-col :span="8" v-for="day in weekDays" :key="day.value">
+              <a-checkbox :value="day.value">{{ day.label }}</a-checkbox>
+            </a-col>
+          </a-row>
+        </a-checkbox-group>
+      </a-form-item>
       <a-form-item label="Course Tags" name="course_tags">
         <a-select 
           v-model:value="form.course_tags" 
@@ -55,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/store/auth'
@@ -64,6 +76,18 @@ import teacherApi from '@/api/teacher'
 const router = useRouter()
 const authStore = useAuthStore()
 const loading = ref(false)
+
+const weekDays = [
+  { label: 'Monday', value: 'monday' },
+  { label: 'Tuesday', value: 'tuesday' },
+  { label: 'Wednesday', value: 'wednesday' },
+  { label: 'Thursday', value: 'thursday' },
+  { label: 'Friday', value: 'friday' },
+  { label: 'Saturday', value: 'saturday' },
+  { label: 'Sunday', value: 'sunday' },
+]
+
+const selectedDays = ref([])
 
 const form = ref({
   course_name: '',
@@ -74,10 +98,20 @@ const form = ref({
   course_time_begin: 800,
   course_time_end: 950,
   course_teacher_id: authStore.user?.user_id || 0,
+  course_schedule: {},
   course_tags: [],
   course_notes: '',
   course_cost: 0,
 })
+
+// Update course_schedule based on selected days
+watch(selectedDays, (newDays) => {
+  const schedule = {}
+  newDays.forEach(day => {
+    schedule[day] = [1] // Default to period 1, can be extended later
+  })
+  form.value.course_schedule = schedule
+}, { deep: true })
 
 const handleSubmit = async () => {
   loading.value = true

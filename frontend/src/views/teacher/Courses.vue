@@ -21,10 +21,12 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/store/auth'
 import teacherApi from '@/api/teacher'
 
+const router = useRouter()
 const authStore = useAuthStore()
 const loading = ref(false)
 const courses = ref([])
@@ -53,7 +55,7 @@ const loadCourses = async () => {
 }
 
 const editCourse = (course) => {
-  message.info('Edit functionality to be implemented')
+  router.push(`/teacher/edit/${course.course_id}`)
 }
 
 const deleteCourse = async (course) => {

@@ -81,6 +81,11 @@ const routes = [
         name: 'TeacherCreateCourse',
         component: () => import('@/views/teacher/CreateCourse.vue'),
       },
+      {
+        path: 'edit/:id',
+        name: 'TeacherEditCourse',
+        component: () => import('@/views/teacher/EditCourse.vue'),
+      },
     ],
   },
   {
