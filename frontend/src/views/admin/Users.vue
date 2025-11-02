@@ -597,10 +597,49 @@ bob,pass456,teacher,bob@example.com,Bob Smith</pre>
           </a-tag>
         </a-form-item>
 
+        <a-form-item label="密码设置方式">
+          <a-radio-group v-model:value="passwordResetMode">
+            <a-radio value="generate">自动生成随机密码</a-radio>
+            <a-radio value="custom">手动设置密码</a-radio>
+          </a-radio-group>
+        </a-form-item>
+
+        <a-form-item 
+          v-if="passwordResetMode === 'custom'" 
+          label="新密码"
+          :rules="[{ required: true, min: 6, message: '密码至少6位' }]"
+        >
+          <a-input-password 
+            v-model:value="customPassword" 
+            placeholder="输入新密码（至少6位）" 
+          />
+        </a-form-item>
+
+        <a-form-item 
+          v-if="passwordResetMode === 'custom'" 
+          label="确认密码"
+          :rules="[{ required: true, message: '请确认密码' }]"
+        >
+          <a-input-password 
+            v-model:value="confirmPassword" 
+            placeholder="再次输入新密码" 
+          />
+        </a-form-item>
+
         <a-alert
-          message="警告 / Warning"
-          description="重置密码将生成一个新的随机密码。请将新密码安全地传递给用户。 / This will generate a new random password. Please securely share it with the user."
-          type="warning"
+          v-if="passwordResetMode === 'generate'"
+          message="提示 / Note"
+          description="将生成一个12位的随机密码。请将新密码安全地传递给用户。 / A 12-character random password will be generated. Please share it securely with the user."
+          type="info"
+          show-icon
+          style="margin-bottom: 16px;"
+        />
+
+        <a-alert
+          v-if="passwordResetMode === 'custom'"
+          message="提示 / Note"
+          description="请为用户设置一个安全的密码。密码至少需要6个字符。 / Please set a secure password for the user. Password must be at least 6 characters."
+          type="info"
           show-icon
           style="margin-bottom: 16px;"
         />
@@ -609,7 +648,7 @@ bob,pass456,teacher,bob@example.com,Bob Smith</pre>
           <a-space>
             <a-button @click="closeResetPasswordModal">取消</a-button>
             <a-button type="primary" :loading="resetPasswordLoading" @click="resetPassword">
-              生成新密码
+              {{ passwordResetMode === 'generate' ? '生成新密码' : '设置密码' }}
             </a-button>
           </a-space>
         </div>
@@ -622,7 +661,7 @@ bob,pass456,teacher,bob@example.com,Bob Smith</pre>
         >
           <template #subTitle>
             <div style="margin-bottom: 16px;">
-              用户 <strong>{{ newPasswordData.username }}</strong> 的新密码已生成
+              用户 <strong>{{ newPasswordData.username }}</strong> 的密码已{{ passwordResetMode === 'generate' ? '生成' : '设置' }}
             </div>
           </template>
           <template #extra>
@@ -668,6 +707,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/store/auth'
 import adminApi from '@/api/admin'
+import axios from 'axios'
 import {
   PlusOutlined,
   UploadOutlined,
@@ -733,6 +773,9 @@ const tagsForm = reactive({
 const resetPasswordModalVisible = ref(false)
 const resetPasswordLoading = ref(false)
 const newPasswordData = ref(null)
+const passwordResetMode = ref('generate') // 'generate' or 'custom'
+const customPassword = ref('')
+const confirmPassword = ref('')
 
 // Table columns for all users
 const columns = [
@@ -1079,18 +1122,40 @@ const handleUpdateTags = async () => {
 const showResetPasswordModal = (user) => {
   selectedUser.value = user
   newPasswordData.value = null
+  passwordResetMode.value = 'generate'
+  customPassword.value = ''
+  confirmPassword.value = ''
   resetPasswordModalVisible.value = true
 }
 
 const resetPassword = async () => {
+  // Validate custom password if in custom mode
+  if (passwordResetMode.value === 'custom') {
+    if (!customPassword.value || customPassword.value.length < 6) {
+      message.error('密码至少需要6个字符')
+      return
+    }
+    if (customPassword.value !== confirmPassword.value) {
+      message.error('两次输入的密码不一致')
+      return
+    }
+  }
+
   try {
     resetPasswordLoading.value = true
+    const requestData = {
+      username: selectedUser.value.username,
+      user_type: selectedUser.value.user_type,
+    }
+    
+    // Add custom password if in custom mode
+    if (passwordResetMode.value === 'custom') {
+      requestData.new_password = customPassword.value
+    }
+
     const response = await axios.post(
       '/api/auth/admin/user/reset-password',
-      {
-        username: selectedUser.value.username,
-        user_type: selectedUser.value.user_type,
-      },
+      requestData,
       {
         headers: {
           Authorization: `Bearer ${authStore.accessToken}`,
@@ -1125,6 +1190,9 @@ const closeResetPasswordModal = () => {
   resetPasswordModalVisible.value = false
   selectedUser.value = null
   newPasswordData.value = null
+  passwordResetMode.value = 'generate'
+  customPassword.value = ''
+  confirmPassword.value = ''
 }
 
 // Utility functions

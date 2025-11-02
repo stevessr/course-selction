@@ -1274,19 +1274,27 @@ async def reset_user_password_endpoint(
     current_admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Reset user password (admin only) - generates new random password"""
+    """Reset user password (admin only) - can set custom password or generate random one"""
     import secrets
     import string
     
     username = data.get("username")
     user_type = data.get("user_type")
+    custom_password = data.get("new_password")  # Optional custom password
     
     if not username or not user_type:
         raise HTTPException(status_code=400, detail="username and user_type required")
     
-    # Generate a secure random password (12 characters)
-    alphabet = string.ascii_letters + string.digits + "!@#$%&*"
-    new_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+    # Use custom password if provided, otherwise generate random
+    if custom_password:
+        if len(custom_password) < 6:
+            raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+        new_password = custom_password
+    else:
+        # Generate a secure random password (12 characters)
+        alphabet = string.ascii_letters + string.digits + "!@#$%&*"
+        new_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+    
     new_password_hash = get_password_hash(new_password)
     
     # Update password in the appropriate table

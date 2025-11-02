@@ -103,4 +103,25 @@ const authApi = {
   },
 }
 
+// User password and 2FA management
+export const changePassword = (data) => {
+  return api.post('/auth/user/change-password', data)
+}
+
+export const setup2FA = (data) => {
+  return api.post('/auth/user/2fa/setup', data)
+}
+
+export const verify2FA = (data) => {
+  return api.post('/auth/user/2fa/verify', data)
+}
+
+export const disable2FA = (data) => {
+  return api.post('/auth/user/2fa/disable', data)
+}
+
+export const get2FAStatus = () => {
+  return api.get('/auth/user/2fa/status')
+}
+
 export default authApi
