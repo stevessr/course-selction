@@ -133,6 +133,13 @@ async def register_v1(
     db: Session = Depends(get_db)
 ):
     """Register user - phase 1: Create account and generate 2FA"""
+    # Check system settings for registration availability
+    settings = ensure_system_settings(db)
+    if user_data.user_type == "student" and not settings.student_registration_enabled:
+        raise HTTPException(status_code=403, detail="Student registration is currently disabled")
+    if user_data.user_type == "teacher" and not settings.teacher_registration_enabled:
+        raise HTTPException(status_code=403, detail="Teacher registration is currently disabled")
+    
     # Verify registration code (now mandatory)
     if not user_data.registration_code:
         raise HTTPException(status_code=400, detail="Registration code is required")
@@ -1529,6 +1536,136 @@ async def batch_assign_teacher_admin(
         }
     except httpx.HTTPError as e:
         raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
+
+
+# ===== System Settings Management =====
+def ensure_system_settings(db: Session):
+    """Ensure system settings exist, create with defaults if not"""
+    settings = db.query(SystemSettings).first()
+    if not settings:
+        settings = SystemSettings(
+            student_registration_enabled=True,
+            teacher_registration_enabled=True
+        )
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+
+@app.get("/admin/settings", response_model=SystemSettingsResponse)
+async def get_system_settings(
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Get system settings (admin only)"""
+    settings = ensure_system_settings(db)
+    return SystemSettingsResponse(
+        student_registration_enabled=settings.student_registration_enabled,
+        teacher_registration_enabled=settings.teacher_registration_enabled,
+        updated_at=settings.updated_at
+    )
+
+
+@app.put("/admin/settings", response_model=SystemSettingsResponse)
+async def update_system_settings(
+    settings_update: SystemSettingsUpdate,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Update system settings (admin only)"""
+    settings = ensure_system_settings(db)
+    
+    if settings_update.student_registration_enabled is not None:
+        settings.student_registration_enabled = settings_update.student_registration_enabled
+    if settings_update.teacher_registration_enabled is not None:
+        settings.teacher_registration_enabled = settings_update.teacher_registration_enabled
+    
+    settings.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(settings)
+    
+    return SystemSettingsResponse(
+        student_registration_enabled=settings.student_registration_enabled,
+        teacher_registration_enabled=settings.teacher_registration_enabled,
+        updated_at=settings.updated_at
+    )
+
+
+# ===== Refresh Token Endpoint =====
+@app.post("/auth/refresh")
+async def refresh_access_token(
+    refresh_token: str,
+    db: Session = Depends(get_db)
+):
+    """Exchange refresh token for new access and refresh tokens"""
+    try:
+        # Decode and validate refresh token
+        payload = decode_token(refresh_token)
+        
+        # Verify it's a refresh token
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        
+        user_id = payload.get("user_id")
+        user_type = payload.get("user_type")
+        username = payload.get("username")
+        
+        if not all([user_id, user_type, username]):
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+        
+        # Check if refresh token is revoked
+        token_hash = hash_token(refresh_token)
+        db_token = db.query(RefreshToken).filter(
+            RefreshToken.token_hash == token_hash
+        ).first()
+        
+        if not db_token or db_token.is_revoked or db_token.expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=401, detail="Refresh token is invalid or expired")
+        
+        # Verify user still exists and is active
+        user = await get_user_by_id(db, user_id, user_type)
+        if not user or not is_active(user):
+            raise HTTPException(status_code=401, detail="User not found or inactive")
+        
+        # Revoke old refresh token
+        db_token.is_revoked = True
+        db.commit()
+        
+        # Generate new tokens
+        new_access_token = create_access_token({
+            "user_id": user_id,
+            "username": username,
+            "user_type": user_type
+        })
+        
+        new_refresh_token = create_refresh_token({
+            "user_id": user_id,
+            "username": username,
+            "user_type": user_type
+        })
+        
+        # Store new refresh token in database
+        new_token_hash = hash_token(new_refresh_token)
+        new_db_token = RefreshToken(
+            user_id=user_id,
+            user_type=user_type,
+            token_hash=new_token_hash,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30)
+        )
+        db.add(new_db_token)
+        db.commit()
+        
+        return {
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "bearer"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid refresh token: {str(e)}")
 
 
 # Health check

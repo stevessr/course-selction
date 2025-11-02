@@ -245,3 +245,35 @@ class QueueTaskStatus(BaseModel):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     position: Optional[int] = None
+
+
+# System Settings
+class SystemSettingsResponse(BaseModel):
+    student_registration_enabled: bool
+    teacher_registration_enabled: bool
+    updated_at: datetime
+
+
+class SystemSettingsUpdate(BaseModel):
+    student_registration_enabled: Optional[bool] = None
+    teacher_registration_enabled: Optional[bool] = None
+
+
+# Password Change
+class PasswordChangeRequest(BaseModel):
+    old_password: str
+    new_password: str = Field(..., min_length=6)
+
+
+# 2FA Management
+class TwoFASetupRequest(BaseModel):
+    password: str  # Verify password before setup
+
+
+class TwoFAVerifyRequest(BaseModel):
+    totp_code: str = Field(..., pattern=r"^\d{6}$")
+
+
+class TwoFADisableRequest(BaseModel):
+    password: str  # Verify password before disabling
+    totp_code: str = Field(..., pattern=r"^\d{6}$")  # Verify current 2FA code
