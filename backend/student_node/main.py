@@ -72,6 +72,17 @@ async def get_available_courses(
     current_user: Dict[str, Any] = Depends(get_current_student)
 ):
     """Get list of available courses"""
+    student_id = current_user.get("user_id")
+    
+    # Get student data to check tags
+    student_url = f"{DATA_NODE_URL}/get/student?student_id={student_id}"
+    student_result = await call_service_api(
+        student_url,
+        method="GET",
+        headers={"Internal-Token": INTERNAL_TOKEN}
+    )
+    student_tags = set(student_result.get("student_tags", []))
+    
     # Get all courses from data node
     url = f"{DATA_NODE_URL}/get/courses"
     if course_type:
@@ -85,14 +96,22 @@ async def get_available_courses(
     
     courses = result.get("courses", [])
     
+    # Filter courses: student must have ALL course tags
+    filtered_courses = []
+    for course in courses:
+        course_tags = set(course.get("course_tags", []))
+        # If course has no tags or student has all required tags, include the course
+        if not course_tags or course_tags.issubset(student_tags):
+            filtered_courses.append(course)
+    
     # Implement pagination
     start = (page - 1) * page_size
     end = start + page_size
-    paginated_courses = courses[start:end]
+    paginated_courses = filtered_courses[start:end]
     
     return {
         "courses": paginated_courses,
-        "total": len(courses),
+        "total": len(filtered_courses),
         "page": page,
         "page_size": page_size
     }

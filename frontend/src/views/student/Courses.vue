@@ -72,6 +72,9 @@
         <a-descriptions-item label="Location">
           {{ selectedCourse.course_location }}
         </a-descriptions-item>
+        <a-descriptions-item label="Time">
+          {{ formatTime(selectedCourse.course_time_begin) }} - {{ formatTime(selectedCourse.course_time_end) }}
+        </a-descriptions-item>
         <a-descriptions-item label="Capacity">
           {{ selectedCourse.course_selected }} / {{ selectedCourse.course_capacity }}
         </a-descriptions-item>
@@ -79,6 +82,12 @@
           <a-tag :color="selectedCourse.course_left > 10 ? 'green' : selectedCourse.course_left > 0 ? 'orange' : 'red'">
             {{ selectedCourse.course_left }}
           </a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item label="Tags" v-if="selectedCourse.course_tags && selectedCourse.course_tags.length > 0">
+          <a-tag v-for="tag in selectedCourse.course_tags" :key="tag" color="blue">{{ tag }}</a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item label="Notes" v-if="selectedCourse.course_notes">
+          {{ selectedCourse.course_notes }}
         </a-descriptions-item>
       </a-descriptions>
     </a-modal>
@@ -165,6 +174,14 @@ const showCourseDetail = async (course) => {
   } catch (error) {
     message.error(error.message || 'Failed to load course details')
   }
+}
+
+// Format time from integer to HH:MM format (e.g., 800 -> "08:00", 1350 -> "13:50")
+const formatTime = (time) => {
+  if (!time) return 'N/A'
+  const hour = Math.floor(time / 100)
+  const minute = time % 100
+  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
 }
 
 onMounted(() => {
