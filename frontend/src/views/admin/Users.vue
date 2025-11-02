@@ -24,130 +24,387 @@
         </a-space>
       </template>
 
-      <!-- Search and Filter -->
-      <div class="search-section">
-        <a-row :gutter="16">
-          <a-col :span="8">
+      <!-- Tabs for User Types -->
+      <a-tabs v-model:activeKey="activeTab" @change="handleTabChange">
+        <a-tab-pane key="all" tab="全部用户 / All Users">
+          <!-- Search -->
+          <div class="search-section">
             <a-input-search
               v-model:value="searchText"
-              placeholder="搜索用户名"
+              placeholder="搜索用户名 / Search username"
               @search="handleSearch"
               allow-clear
+              style="width: 300px; margin-bottom: 16px;"
             >
               <template #prefix><SearchOutlined /></template>
             </a-input-search>
-          </a-col>
-          <a-col :span="6">
-            <a-select
-              v-model:value="filterUserType"
-              placeholder="用户类型"
-              style="width: 100%"
-              @change="handleSearch"
+          </div>
+
+          <!-- Users Table -->
+          <a-table
+            :columns="columns"
+            :data-source="users"
+            :loading="loading"
+            :pagination="pagination"
+            @change="handleTableChange"
+            row-key="user_id"
+            class="users-table"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'username'">
+                <a-space>
+                  <a-avatar :style="{ backgroundColor: getUserTypeColor(record.user_type) }">
+                    {{ record.username.charAt(0).toUpperCase() }}
+                  </a-avatar>
+                  <span class="username-text">{{ record.username }}</span>
+                </a-space>
+              </template>
+
+              <template v-else-if="column.key === 'user_type'">
+                <a-tag :color="getUserTypeTagColor(record.user_type)">
+                  {{ getUserTypeLabel(record.user_type) }}
+                </a-tag>
+              </template>
+
+              <template v-else-if="column.key === 'is_active'">
+                <a-badge
+                  :status="record.is_active ? 'success' : 'error'"
+                  :text="record.is_active ? '活跃' : '已停用'"
+                />
+              </template>
+
+              <template v-else-if="column.key === 'has_2fa'">
+                <a-tag v-if="record.user_type === 'student' || record.user_type === 'teacher'" :color="record.totp_secret ? 'green' : 'orange'">
+                  {{ record.totp_secret ? '已启用' : '未启用' }}
+                </a-tag>
+                <span v-else>-</span>
+              </template>
+
+              <template v-else-if="column.key === 'created_at'">
+                {{ formatDate(record.created_at) }}
+              </template>
+
+              <template v-else-if="column.key === 'actions'">
+                <a-space>
+                  <a-tooltip title="查看详情">
+                    <a-button size="small" @click="viewUserDetails(record)">
+                      <template #icon><EyeOutlined /></template>
+                    </a-button>
+                  </a-tooltip>
+
+                  <a-tooltip v-if="record.user_type === 'student'" title="管理标签">
+                    <a-button size="small" @click="showManageTagsModal(record)">
+                      <template #icon><TagOutlined /></template>
+                    </a-button>
+                  </a-tooltip>
+
+                  <a-tooltip 
+                    v-if="(record.user_type === 'student' || record.user_type === 'teacher') && record.totp_secret" 
+                    title="重置2FA">
+                    <a-button size="small" @click="reset2FA(record)">
+                      <template #icon><KeyOutlined /></template>
+                    </a-button>
+                  </a-tooltip>
+
+                  <a-tooltip :title="record.is_active ? '停用' : '启用'">
+                    <a-button
+                      size="small"
+                      :type="record.is_active ? 'default' : 'primary'"
+                      @click="toggleUserStatus(record)"
+                    >
+                      <template #icon>
+                        <StopOutlined v-if="record.is_active" />
+                        <CheckCircleOutlined v-else />
+                      </template>
+                    </a-button>
+                  </a-tooltip>
+
+                  <a-popconfirm
+                    title="确定要删除此用户吗？"
+                    ok-text="删除"
+                    cancel-text="取消"
+                    @confirm="deleteUser(record)"
+                  >
+                    <a-tooltip title="删除">
+                      <a-button size="small" danger>
+                        <template #icon><DeleteOutlined /></template>
+                      </a-button>
+                    </a-tooltip>
+                  </a-popconfirm>
+                </a-space>
+              </template>
+            </template>
+          </a-table>
+        </a-tab-pane>
+
+        <a-tab-pane key="student" tab="学生 / Students">
+          <!-- Search -->
+          <div class="search-section">
+            <a-input-search
+              v-model:value="searchText"
+              placeholder="搜索学生用户名 / Search student username"
+              @search="handleSearch"
               allow-clear
+              style="width: 300px; margin-bottom: 16px;"
             >
-              <a-select-option value="student">学生</a-select-option>
-              <a-select-option value="teacher">教师</a-select-option>
-              <a-select-option value="admin">管理员</a-select-option>
-            </a-select>
-          </a-col>
-        </a-row>
-      </div>
+              <template #prefix><SearchOutlined /></template>
+            </a-input-search>
+          </div>
 
-      <!-- Users Table -->
-      <a-table
-        :columns="columns"
-        :data-source="users"
-        :loading="loading"
-        :pagination="pagination"
-        @change="handleTableChange"
-        row-key="user_id"
-        class="users-table"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'username'">
-            <a-space>
-              <a-avatar :style="{ backgroundColor: getUserTypeColor(record.user_type) }">
-                {{ record.username.charAt(0).toUpperCase() }}
-              </a-avatar>
-              <span class="username-text">{{ record.username }}</span>
-            </a-space>
-          </template>
+          <!-- Students Table -->
+          <a-table
+            :columns="columns"
+            :data-source="users"
+            :loading="loading"
+            :pagination="pagination"
+            @change="handleTableChange"
+            row-key="user_id"
+            class="users-table"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'username'">
+                <a-space>
+                  <a-avatar :style="{ backgroundColor: getUserTypeColor(record.user_type) }">
+                    {{ record.username.charAt(0).toUpperCase() }}
+                  </a-avatar>
+                  <span class="username-text">{{ record.username }}</span>
+                </a-space>
+              </template>
 
-          <template v-else-if="column.key === 'user_type'">
-            <a-tag :color="getUserTypeTagColor(record.user_type)">
-              {{ getUserTypeLabel(record.user_type) }}
-            </a-tag>
-          </template>
+              <template v-else-if="column.key === 'user_type'">
+                <a-tag :color="getUserTypeTagColor(record.user_type)">
+                  {{ getUserTypeLabel(record.user_type) }}
+                </a-tag>
+              </template>
 
-          <template v-else-if="column.key === 'is_active'">
-            <a-badge
-              :status="record.is_active ? 'success' : 'error'"
-              :text="record.is_active ? '活跃' : '已停用'"
-            />
-          </template>
+              <template v-else-if="column.key === 'is_active'">
+                <a-badge
+                  :status="record.is_active ? 'success' : 'error'"
+                  :text="record.is_active ? '活跃' : '已停用'"
+                />
+              </template>
 
-          <template v-else-if="column.key === 'has_2fa'">
-            <a-tag v-if="record.user_type === 'student' || record.user_type === 'teacher'" :color="record.totp_secret ? 'green' : 'orange'">
-              {{ record.totp_secret ? '已启用' : '未启用' }}
-            </a-tag>
-            <span v-else>-</span>
-          </template>
+              <template v-else-if="column.key === 'has_2fa'">
+                <a-tag :color="record.totp_secret ? 'green' : 'orange'">
+                  {{ record.totp_secret ? '已启用' : '未启用' }}
+                </a-tag>
+              </template>
 
-          <template v-else-if="column.key === 'created_at'">
-            {{ formatDate(record.created_at) }}
-          </template>
+              <template v-else-if="column.key === 'created_at'">
+                {{ formatDate(record.created_at) }}
+              </template>
 
-          <template v-else-if="column.key === 'actions'">
-            <a-space>
-              <a-tooltip title="查看详情">
-                <a-button size="small" @click="viewUserDetails(record)">
-                  <template #icon><EyeOutlined /></template>
-                </a-button>
-              </a-tooltip>
+              <template v-else-if="column.key === 'actions'">
+                <a-space>
+                  <a-tooltip title="查看详情">
+                    <a-button size="small" @click="viewUserDetails(record)">
+                      <template #icon><EyeOutlined /></template>
+                    </a-button>
+                  </a-tooltip>
 
-              <a-tooltip v-if="record.user_type === 'student'" title="管理标签">
-                <a-button size="small" @click="showManageTagsModal(record)">
-                  <template #icon><TagOutlined /></template>
-                </a-button>
-              </a-tooltip>
+                  <a-tooltip title="管理标签">
+                    <a-button size="small" @click="showManageTagsModal(record)">
+                      <template #icon><TagOutlined /></template>
+                    </a-button>
+                  </a-tooltip>
 
-              <a-tooltip 
-                v-if="(record.user_type === 'student' || record.user_type === 'teacher') && record.totp_secret" 
-                title="重置2FA">
-                <a-button size="small" @click="reset2FA(record)">
-                  <template #icon><KeyOutlined /></template>
-                </a-button>
-              </a-tooltip>
+                  <a-tooltip v-if="record.totp_secret" title="重置2FA">
+                    <a-button size="small" @click="reset2FA(record)">
+                      <template #icon><KeyOutlined /></template>
+                    </a-button>
+                  </a-tooltip>
 
-              <a-tooltip :title="record.is_active ? '停用' : '启用'">
-                <a-button
-                  size="small"
-                  :type="record.is_active ? 'default' : 'primary'"
-                  @click="toggleUserStatus(record)"
-                >
-                  <template #icon>
-                    <StopOutlined v-if="record.is_active" />
-                    <CheckCircleOutlined v-else />
-                  </template>
-                </a-button>
-              </a-tooltip>
+                  <a-tooltip :title="record.is_active ? '停用' : '启用'">
+                    <a-button
+                      size="small"
+                      :type="record.is_active ? 'default' : 'primary'"
+                      @click="toggleUserStatus(record)"
+                    >
+                      <template #icon>
+                        <StopOutlined v-if="record.is_active" />
+                        <CheckCircleOutlined v-else />
+                      </template>
+                    </a-button>
+                  </a-tooltip>
 
-              <a-popconfirm
-                title="确定要删除此用户吗？"
-                ok-text="删除"
-                cancel-text="取消"
-                @confirm="deleteUser(record)"
-              >
-                <a-tooltip title="删除">
-                  <a-button size="small" danger>
-                    <template #icon><DeleteOutlined /></template>
-                  </a-button>
-                </a-tooltip>
-              </a-popconfirm>
-            </a-space>
-          </template>
-        </template>
-      </a-table>
+                  <a-popconfirm
+                    title="确定要删除此学生吗？"
+                    ok-text="删除"
+                    cancel-text="取消"
+                    @confirm="deleteUser(record)"
+                  >
+                    <a-tooltip title="删除">
+                      <a-button size="small" danger>
+                        <template #icon><DeleteOutlined /></template>
+                      </a-button>
+                    </a-tooltip>
+                  </a-popconfirm>
+                </a-space>
+              </template>
+            </template>
+          </a-table>
+        </a-tab-pane>
+
+        <a-tab-pane key="teacher" tab="教师 / Teachers">
+          <!-- Search -->
+          <div class="search-section">
+            <a-input-search
+              v-model:value="searchText"
+              placeholder="搜索教师用户名 / Search teacher username"
+              @search="handleSearch"
+              allow-clear
+              style="width: 300px; margin-bottom: 16px;"
+            >
+              <template #prefix><SearchOutlined /></template>
+            </a-input-search>
+          </div>
+
+          <!-- Teachers Table -->
+          <a-table
+            :columns="columnsTeacher"
+            :data-source="users"
+            :loading="loading"
+            :pagination="pagination"
+            @change="handleTableChange"
+            row-key="user_id"
+            class="users-table"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'username'">
+                <a-space>
+                  <a-avatar :style="{ backgroundColor: getUserTypeColor(record.user_type) }">
+                    {{ record.username.charAt(0).toUpperCase() }}
+                  </a-avatar>
+                  <span class="username-text">{{ record.username }}</span>
+                </a-space>
+              </template>
+
+              <template v-else-if="column.key === 'user_type'">
+                <a-tag :color="getUserTypeTagColor(record.user_type)">
+                  {{ getUserTypeLabel(record.user_type) }}
+                </a-tag>
+              </template>
+
+              <template v-else-if="column.key === 'is_active'">
+                <a-badge
+                  :status="record.is_active ? 'success' : 'error'"
+                  :text="record.is_active ? '活跃' : '已停用'"
+                />
+              </template>
+
+              <template v-else-if="column.key === 'created_at'">
+                {{ formatDate(record.created_at) }}
+              </template>
+
+              <template v-else-if="column.key === 'actions'">
+                <a-space>
+                  <a-tooltip title="查看详情">
+                    <a-button size="small" @click="viewUserDetails(record)">
+                      <template #icon><EyeOutlined /></template>
+                    </a-button>
+                  </a-tooltip>
+
+                  <a-tooltip :title="record.is_active ? '停用' : '启用'">
+                    <a-button
+                      size="small"
+                      :type="record.is_active ? 'default' : 'primary'"
+                      @click="toggleUserStatus(record)"
+                    >
+                      <template #icon>
+                        <StopOutlined v-if="record.is_active" />
+                        <CheckCircleOutlined v-else />
+                      </template>
+                    </a-button>
+                  </a-tooltip>
+
+                  <a-popconfirm
+                    title="确定要删除此教师吗？"
+                    ok-text="删除"
+                    cancel-text="取消"
+                    @confirm="deleteUser(record)"
+                  >
+                    <a-tooltip title="删除">
+                      <a-button size="small" danger>
+                        <template #icon><DeleteOutlined /></template>
+                      </a-button>
+                    </a-tooltip>
+                  </a-popconfirm>
+                </a-space>
+              </template>
+            </template>
+          </a-table>
+        </a-tab-pane>
+
+        <a-tab-pane key="admin" tab="管理员 / Administrators">
+          <!-- Search -->
+          <div class="search-section">
+            <a-input-search
+              v-model:value="searchText"
+              placeholder="搜索管理员用户名 / Search admin username"
+              @search="handleSearch"
+              allow-clear
+              style="width: 300px; margin-bottom: 16px;"
+            >
+              <template #prefix><SearchOutlined /></template>
+            </a-input-search>
+          </div>
+
+          <!-- Admins Table -->
+          <a-table
+            :columns="columnsAdmin"
+            :data-source="users"
+            :loading="loading"
+            :pagination="pagination"
+            @change="handleTableChange"
+            row-key="user_id"
+            class="users-table"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'username'">
+                <a-space>
+                  <a-avatar :style="{ backgroundColor: getUserTypeColor(record.user_type) }">
+                    {{ record.username.charAt(0).toUpperCase() }}
+                  </a-avatar>
+                  <span class="username-text">{{ record.username }}</span>
+                </a-space>
+              </template>
+
+              <template v-else-if="column.key === 'user_type'">
+                <a-tag :color="getUserTypeTagColor(record.user_type)">
+                  {{ getUserTypeLabel(record.user_type) }}
+                </a-tag>
+              </template>
+
+              <template v-else-if="column.key === 'created_at'">
+                {{ formatDate(record.created_at) }}
+              </template>
+
+              <template v-else-if="column.key === 'actions'">
+                <a-space>
+                  <a-tooltip title="查看详情">
+                    <a-button size="small" @click="viewUserDetails(record)">
+                      <template #icon><EyeOutlined /></template>
+                    </a-button>
+                  </a-tooltip>
+
+                  <a-popconfirm
+                    title="确定要删除此管理员吗？"
+                    ok-text="删除"
+                    cancel-text="取消"
+                    @confirm="deleteUser(record)"
+                  >
+                    <a-tooltip title="删除">
+                      <a-button size="small" danger>
+                        <template #icon><DeleteOutlined /></template>
+                      </a-button>
+                    </a-tooltip>
+                  </a-popconfirm>
+                </a-space>
+              </template>
+            </template>
+          </a-table>
+        </a-tab-pane>
+      </a-tabs>
     </a-card>
 
     <!-- Add User Modal -->
@@ -334,7 +591,7 @@ const authStore = useAuthStore()
 const loading = ref(false)
 const users = ref([])
 const searchText = ref('')
-const filterUserType = ref(null)
+const activeTab = ref('all')
 
 // Pagination
 const pagination = reactive({
@@ -372,7 +629,7 @@ const tagsForm = reactive({
   tags: [],
 })
 
-// Table columns
+// Table columns for all users
 const columns = [
   {
     title: '用户名',
@@ -410,13 +667,86 @@ const columns = [
   },
 ]
 
+// Table columns for teachers (no 2FA column)
+const columnsTeacher = [
+  {
+    title: '用户名',
+    dataIndex: 'username',
+    key: 'username',
+    width: '25%',
+  },
+  {
+    title: '类型',
+    dataIndex: 'user_type',
+    key: 'user_type',
+    width: '15%',
+  },
+  {
+    title: '状态',
+    dataIndex: 'is_active',
+    key: 'is_active',
+    width: '15%',
+  },
+  {
+    title: '创建时间',
+    dataIndex: 'created_at',
+    key: 'created_at',
+    width: '20%',
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: '25%',
+  },
+]
+
+// Table columns for admins (no 2FA, no status column)
+const columnsAdmin = [
+  {
+    title: '用户名',
+    dataIndex: 'username',
+    key: 'username',
+    width: '30%',
+  },
+  {
+    title: '类型',
+    dataIndex: 'user_type',
+    key: 'user_type',
+    width: '20%',
+  },
+  {
+    title: '创建时间',
+    dataIndex: 'created_at',
+    key: 'created_at',
+    width: '30%',
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: '20%',
+  },
+]
+
 // Methods
+const getUserTypeFromTab = () => {
+  if (activeTab.value === 'all') return null
+  return activeTab.value
+}
+
+const handleTabChange = (key) => {
+  activeTab.value = key
+  pagination.current = 1
+  searchText.value = ''
+  loadUsers()
+}
+
 const loadUsers = async () => {
   loading.value = true
   try {
+    const userType = getUserTypeFromTab()
     const response = await adminApi.listUsers(
       authStore.accessToken,
-      filterUserType.value,
+      userType,
       pagination.current,
       pagination.pageSize,
       searchText.value

@@ -804,7 +804,7 @@ async def generate_reset_code_endpoint(
 ):
     """Generate 2FA reset code (admin only)"""
     # Find user
-    user = get_user_by_username(db, reset_data.username)
+    user = await get_user_by_username(db, reset_data.username)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -1183,7 +1183,7 @@ async def reset_user_2fa_endpoint(
     if not username:
         raise HTTPException(status_code=400, detail="Username required")
     
-    user = get_user_by_username(db, username)
+    user = await get_user_by_username(db, username)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
