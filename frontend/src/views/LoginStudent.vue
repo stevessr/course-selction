@@ -20,7 +20,12 @@
           name="username"
           :rules="[{ required: true, message: 'Please input your username!' }]"
         >
-          <a-input v-model:value="loginForm.username" placeholder="Username" size="large" />
+          <a-input 
+            v-model:value="loginForm.username" 
+            placeholder="Username" 
+            size="large"
+            autocomplete="username"
+          />
         </a-form-item>
 
         <a-form-item
@@ -28,7 +33,12 @@
           name="password"
           :rules="[{ required: true, message: 'Please input your password!' }]"
         >
-          <a-input-password v-model:value="loginForm.password" placeholder="Password" size="large" />
+          <a-input-password 
+            v-model:value="loginForm.password" 
+            placeholder="Password" 
+            size="large"
+            autocomplete="current-password"
+          />
         </a-form-item>
 
         <a-form-item>
@@ -162,7 +172,7 @@ const resetting = ref(false)
 
 // Check if we have a valid refresh token on mount
 onMounted(async () => {
-  if (authStore.refreshToken) {
+  if (authStore.refreshToken?.value) {
     // We have a refresh token, check 2FA status
     const statusResult = await authStore.check2FAStatus()
     
@@ -171,7 +181,7 @@ onMounted(async () => {
         // User has 2FA enabled, show 2FA screen
         needsTwoFactor.value = true
       } else {
-        // User has 2FA disabled, login directly
+        // Student without 2FA, login directly
         loading.value = true
         try {
           const result = await authStore.loginNo2FA()
@@ -208,8 +218,11 @@ const handleLogin = async () => {
       // Check if user has 2FA enabled
       const statusResult = await authStore.check2FAStatus()
       
-      if (statusResult.success && !statusResult.has_2fa) {
-        // 2FA is disabled, login directly
+      if (statusResult.success && statusResult.has_2fa) {
+        // 2FA is enabled, show 2FA screen
+        needsTwoFactor.value = true
+      } else {
+        // Student without 2FA, login directly
         const loginResult = await authStore.loginNo2FA()
         if (loginResult.success) {
           message.success('Login successful')
@@ -217,9 +230,6 @@ const handleLogin = async () => {
         } else {
           message.error(loginResult.error || 'Login failed')
         }
-      } else {
-        // 2FA is enabled, show 2FA screen
-        needsTwoFactor.value = true
       }
     } else {
       message.error(result.error || 'Login failed')
@@ -234,7 +244,12 @@ const handleLogin = async () => {
 const handleTwoFactor = async () => {
   loading.value = true
   try {
-    await authStore.verify2FA(twoFactorForm.value.totpCode)
+    // Sanitize to 6 digits
+    const code = (twoFactorForm.value.totpCode || '').replace(/\D/g, '').slice(0, 6)
+    if (code.length !== 6) {
+      throw new Error('2FA code must be 6 digits')
+    }
+    await authStore.verify2FA(code)
     message.success('Login successful')
     router.push('/student/courses')
   } catch (error) {
@@ -305,7 +320,7 @@ const handleReset2FA = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: cornflowerblue;
 }
 
 .login-card {

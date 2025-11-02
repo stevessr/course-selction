@@ -22,8 +22,17 @@
           <a-menu-item key="users" @click="$router.push('/admin/users')">
             User Management
           </a-menu-item>
+          <a-menu-item key="courses" @click="$router.push('/admin/courses')">
+            Course Management
+          </a-menu-item>
+          <a-menu-item key="tags" @click="$router.push('/admin/tags')">
+            Tag Management
+          </a-menu-item>
           <a-menu-item key="codes" @click="$router.push('/admin/codes')">
             Registration Codes
+          </a-menu-item>
+          <a-menu-item key="reset-codes" @click="$router.push('/admin/reset-codes')">
+            Reset Codes
           </a-menu-item>
         </a-menu>
       </a-layout-sider>

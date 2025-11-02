@@ -26,6 +26,24 @@
       <a-form-item label="Time End" name="course_time_end" :rules="[{ required: true }]">
         <a-input-number v-model:value="form.course_time_end" style="width: 100%" />
       </a-form-item>
+      <a-form-item label="Course Tags" name="course_tags">
+        <a-select 
+          v-model:value="form.course_tags" 
+          mode="tags" 
+          placeholder="Enter tags (students must have matching tags to enroll)"
+          style="width: 100%"
+        >
+        </a-select>
+        <div style="margin-top: 8px; color: #666; font-size: 12px;">
+          Add tags to restrict enrollment to students with matching tags. Leave empty for no restrictions.
+        </div>
+      </a-form-item>
+      <a-form-item label="Notes" name="course_notes">
+        <a-textarea v-model:value="form.course_notes" :rows="3" placeholder="Additional course information (optional)" />
+      </a-form-item>
+      <a-form-item label="Cost" name="course_cost">
+        <a-input-number v-model:value="form.course_cost" :min="0" style="width: 100%" placeholder="0 for free courses" />
+      </a-form-item>
       <a-form-item>
         <a-space>
           <a-button type="primary" html-type="submit" :loading="loading">Create</a-button>
@@ -56,12 +74,15 @@ const form = ref({
   course_time_begin: 800,
   course_time_end: 950,
   course_teacher_id: authStore.user?.user_id || 0,
+  course_tags: [],
+  course_notes: '',
+  course_cost: 0,
 })
 
 const handleSubmit = async () => {
   loading.value = true
   try {
-    await teacherApi.createCourse(authStore.accessToken, form.value)
+  await teacherApi.createCourse(authStore.accessToken?.value || authStore.accessToken, form.value)
     message.success('Course created successfully')
     router.push('/teacher/courses')
   } catch (error) {

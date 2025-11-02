@@ -102,9 +102,11 @@ def has_2fa(user: Union[Student, Teacher, Admin]) -> bool:
     Returns:
         True if user has 2FA enabled, False otherwise
     """
-    # Only students have 2FA
+    # Students and Teachers can have 2FA
     if isinstance(user, Student):
-        return user.totp_secret is not None and user.totp_secret != ""
+        return hasattr(user, 'has_2fa') and user.has_2fa
+    elif isinstance(user, Teacher):
+        return hasattr(user, 'has_2fa') and user.has_2fa
     return False
 
 
@@ -117,8 +119,8 @@ def get_totp_secret(user: Union[Student, Teacher, Admin]) -> Optional[str]:
     Returns:
         TOTP secret if available, None otherwise
     """
-    if isinstance(user, Student):
-        return user.totp_secret
+    if isinstance(user, Student) or isinstance(user, Teacher):
+        return user.totp_secret if hasattr(user, 'totp_secret') else None
     return None
 
 
@@ -129,9 +131,13 @@ def set_totp_secret(user: Union[Student, Teacher, Admin], totp_secret: Optional[
         user: User object (Student, Teacher, or Admin)
         totp_secret: TOTP secret to set
     """
-    if isinstance(user, Student):
+    if isinstance(user, Student) or isinstance(user, Teacher):
         user.totp_secret = totp_secret
-    # Teachers and admins don't have 2FA
+        if totp_secret:
+            user.has_2fa = True
+        else:
+            user.has_2fa = False
+    # Admins don't have 2FA
 
 
 def is_active(user: Union[Student, Teacher, Admin]) -> bool:

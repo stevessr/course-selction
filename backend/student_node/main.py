@@ -3,6 +3,12 @@ from fastapi import FastAPI, HTTPException, Depends, Header, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, List, Dict, Any
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables: root .env first, then service-level .env overrides
+load_dotenv()
+load_dotenv(dotenv_path=Path(__file__).with_name('.env'), override=True)
 
 from backend.common import (
     CourseSelectionRequest,
@@ -223,11 +229,18 @@ async def deselect_course(
 
 @app.post("/student/course/detail")
 async def get_course_detail(
-    course_id: int,
+    request: Request,
     current_user: Dict[str, Any] = Depends(get_current_student)
 ):
     """Get detailed information about a course"""
     student_id = current_user.get("user_id")
+    
+    # Get course_id from request body
+    body = await request.json()
+    course_id = body.get("course_id")
+    
+    if not course_id:
+        raise HTTPException(status_code=400, detail="course_id is required")
     
     # Get course info
     url = f"{DATA_NODE_URL}/get/course?course_id={course_id}"
@@ -368,11 +381,18 @@ async def get_queue_status(
 
 @app.post("/student/course/check")
 async def check_course_conflicts(
-    course_id: int,
+    request: Request,
     current_user: Dict[str, Any] = Depends(get_current_student)
 ):
     """Check if student can select a course (conflicts, capacity, etc.)"""
     student_id = current_user.get("user_id")
+    
+    # Get course_id from request body
+    body = await request.json()
+    course_id = body.get("course_id")
+    
+    if not course_id:
+        raise HTTPException(status_code=400, detail="course_id is required")
     
     conflicts = []
     can_select = True

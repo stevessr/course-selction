@@ -6,12 +6,19 @@ from typing import Optional, List
 import os
 from datetime import datetime, timezone
 from pydantic import BaseModel
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables: root .env first, then service-level .env overrides
+load_dotenv()
+load_dotenv(dotenv_path=Path(__file__).with_name('.env'), override=True)
 
 from backend.common import (
-    DataBase, Course, StudentCourseData, TeacherCourseData,
+    DataBase, Course, StudentCourseData, TeacherCourseData, AvailableTag,
     CourseCreate, CourseUpdate, CourseResponse,
     StudentCreate, StudentResponse,
     TeacherCreate, TeacherResponse,
+    CourseSelectionData,
     get_database_url, create_db_engine, create_session_factory, init_database,
     create_socket_server_config,
 )
@@ -71,7 +78,7 @@ async def add_course(
     teacher = db.query(TeacherCourseData).filter(TeacherCourseData.teacher_id == course.course_teacher_id).first()
 
     # Create course
-    db_course = Course(**course.model_dump(), course_selected=0)
+    db_course = Course(**course.model_dump(), course_selected=[], course_selected_count=0)
     db.add(db_course)
     db.commit()
     db.refresh(db_course)
@@ -84,12 +91,12 @@ async def add_course(
             teacher.teacher_courses = teacher_courses
             db.commit()
 
-    # Calculate course_left
-    course_dict = {
-        **db_course.__dict__,
-        "course_left": db_course.course_capacity - db_course.course_selected
-    }
-    return course_dict
+    # Calculate course_left and add it as an attribute for response
+    # Use course_selected_count for calculation
+    db_course.course_left = db_course.course_capacity - db_course.course_selected_count
+    # Set course_selected to count for API response (schema expects int)
+    db_course.course_selected = db_course.course_selected_count
+    return db_course
 
 
 @app.get("/courses", response_model=List[CourseResponse])
@@ -99,13 +106,10 @@ async def list_courses(
 ):
     """List all courses"""
     courses = db.query(Course).all()
-    results = []
     for c in courses:
-        results.append({
-            **c.__dict__,
-            "course_left": c.course_capacity - (c.course_selected or 0)
-        })
-    return results
+        c.course_left = c.course_capacity - c.course_selected_count
+        c.course_selected = c.course_selected_count  # Set to count for response
+    return courses
 
 
 @app.post("/update/course", response_model=CourseResponse)
@@ -129,11 +133,9 @@ async def update_course(
     db.commit()
     db.refresh(db_course)
     
-    course_dict = {
-        **db_course.__dict__,
-        "course_left": db_course.course_capacity - db_course.course_selected
-    }
-    return course_dict
+    db_course.course_left = db_course.course_capacity - db_course.course_selected_count
+    db_course.course_selected = db_course.course_selected_count  # Set to count for response
+    return db_course
 
 
 @app.post("/delete/course")
@@ -168,6 +170,67 @@ async def delete_course(
     return {"success": True, "message": "Course deleted successfully"}
 
 
+@app.post("/bulk/import/courses")
+async def bulk_import_courses(
+    courses_data: List[CourseCreate],
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_internal_token_header)
+):
+    """Bulk import courses"""
+    imported = []
+    errors = []
+    
+    for idx, course_data in enumerate(courses_data):
+        try:
+            # Check if course with same name already exists
+            existing = db.query(Course).filter(Course.course_name == course_data.course_name).first()
+            if existing:
+                errors.append({
+                    "index": idx,
+                    "course_name": course_data.course_name,
+                    "error": "Course with this name already exists"
+                })
+                continue
+            
+            # Create new course
+            db_course = Course(
+                course_name=course_data.course_name,
+                course_credit=course_data.course_credit,
+                course_type=course_data.course_type,
+                course_location=course_data.course_location,
+                course_capacity=course_data.course_capacity,
+                course_selected=[],
+                course_selected_count=0,
+                course_time_begin=course_data.course_time_begin,
+                course_time_end=course_data.course_time_end,
+                course_teacher_id=course_data.course_teacher_id if hasattr(course_data, 'course_teacher_id') else None,
+                course_tags=course_data.course_tags if hasattr(course_data, 'course_tags') else [],
+                course_notes=course_data.course_notes if hasattr(course_data, 'course_notes') else None,
+                course_cost=course_data.course_cost if hasattr(course_data, 'course_cost') else 0,
+            )
+            db.add(db_course)
+            db.commit()
+            db.refresh(db_course)
+            imported.append({
+                "course_id": db_course.course_id,
+                "course_name": db_course.course_name
+            })
+        except Exception as e:
+            errors.append({
+                "index": idx,
+                "course_name": course_data.course_name if hasattr(course_data, 'course_name') else f"Course {idx}",
+                "error": str(e)
+            })
+    
+    return {
+        "success": True,
+        "imported_count": len(imported),
+        "error_count": len(errors),
+        "imported": imported,
+        "errors": errors
+    }
+
+
 @app.get("/get/course", response_model=CourseResponse)
 async def get_course(
     course_id: int,
@@ -179,11 +242,9 @@ async def get_course(
     if not db_course:
         raise HTTPException(status_code=404, detail="Course not found")
     
-    course_dict = {
-        **db_course.__dict__,
-        "course_left": db_course.course_capacity - db_course.course_selected
-    }
-    return course_dict
+    db_course.course_left = db_course.course_capacity - db_course.course_selected_count
+    db_course.course_selected = db_course.course_selected_count  # Set to count for response
+    return db_course
 
 
 @app.get("/get/courses")
@@ -206,11 +267,9 @@ async def get_courses(
     
     result = []
     for course in courses:
-        course_dict = {
-            **course.__dict__,
-            "course_left": course.course_capacity - course.course_selected
-        }
-        result.append(course_dict)
+        course.course_left = course.course_capacity - course.course_selected_count
+        course.course_selected = course.course_selected_count  # Set to count for response
+        result.append(course)
     
     return {"courses": result, "total": len(result)}
 
@@ -241,7 +300,8 @@ async def add_student(
 @app.post("/update/student", response_model=StudentResponse)
 async def update_student(
     student_id: int,
-    student_name: str,
+    student_name: Optional[str] = None,
+    student_tags: Optional[List[str]] = None,
     db: Session = Depends(get_db),
     _: None = Depends(verify_internal_token_header)
 ):
@@ -250,7 +310,11 @@ async def update_student(
     if not db_student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    db_student.student_name = student_name
+    if student_name is not None:
+        db_student.student_name = student_name
+    if student_tags is not None:
+        db_student.student_tags = student_tags
+    
     db_student.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(db_student)
@@ -272,7 +336,12 @@ async def delete_student(
     for course_id in db_student.student_courses or []:
         course = db.query(Course).filter(Course.course_id == course_id).first()
         if course:
-            course.course_selected = max(0, course.course_selected - 1)
+            # Remove student from course_selected list
+            if isinstance(course.course_selected, list) and student_id in course.course_selected:
+                course.course_selected.remove(student_id)
+                flag_modified(course, "course_selected")
+            # Update count
+            course.course_selected_count = max(0, course.course_selected_count - 1)
 
     db.delete(db_student)
     db.commit()
@@ -369,74 +438,213 @@ async def get_teacher(
 # Course selection endpoints
 @app.post("/select/course")
 async def select_course(
-    student_id: int,
-    course_id: int,
+    selection: CourseSelectionData,
     db: Session = Depends(get_db),
     _: None = Depends(verify_internal_token_header)
 ):
     """Student selects a course"""
-    student = db.query(StudentCourseData).filter(StudentCourseData.student_id == student_id).first()
+    student = db.query(StudentCourseData).filter(StudentCourseData.student_id == selection.student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     
-    course = db.query(Course).filter(Course.course_id == course_id).first()
+    course = db.query(Course).filter(Course.course_id == selection.course_id).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
+    # Initialize course_selected as array if it's still an integer (migration support)
+    course_selected_list = course.course_selected if isinstance(course.course_selected, list) else []
+    course_selected_count = len(course_selected_list) if isinstance(course.course_selected, list) else course.course_selected
+    
     # Check if course is full
-    if course.course_selected >= course.course_capacity:
+    if course_selected_count >= course.course_capacity:
         raise HTTPException(status_code=400, detail="Course is full")
     
     # Check if student already selected this course
     student_courses = student.student_courses or []
-    if course_id in student_courses:
+    if selection.course_id in student_courses:
         raise HTTPException(status_code=400, detail="Student already selected this course")
     
+    # Check if student ID is already in course selected list
+    if selection.student_id in course_selected_list:
+        raise HTTPException(status_code=400, detail="Student already in course selection list")
+    
     # Add course to student
-    student_courses.append(course_id)
+    student_courses.append(selection.course_id)
     student.student_courses = student_courses
     student.updated_at = datetime.now(timezone.utc)
     
-    # Increment course selection count
-    course.course_selected += 1
+    # Add student ID to course selected list
+    course_selected_list.append(selection.student_id)
+    course.course_selected = course_selected_list
+    course.course_selected_count = len(course_selected_list)
     course.updated_at = datetime.now(timezone.utc)
     
+    # Explicitly mark as modified for SQLAlchemy to detect JSON changes
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(student, "student_courses")
+    flag_modified(course, "course_selected")
+    
     db.commit()
+    db.refresh(student)
+    db.refresh(course)
+    
     return {"success": True, "message": "Course selected successfully"}
 
 
 @app.post("/deselect/course")
 async def deselect_course(
-    student_id: int,
-    course_id: int,
+    selection: CourseSelectionData,
     db: Session = Depends(get_db),
     _: None = Depends(verify_internal_token_header)
 ):
     """Student deselects a course"""
-    student = db.query(StudentCourseData).filter(StudentCourseData.student_id == student_id).first()
+    student = db.query(StudentCourseData).filter(StudentCourseData.student_id == selection.student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     
-    course = db.query(Course).filter(Course.course_id == course_id).first()
+    course = db.query(Course).filter(Course.course_id == selection.course_id).first()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
     # Check if student has selected this course
     student_courses = student.student_courses or []
-    if course_id not in student_courses:
+    if selection.course_id not in student_courses:
         raise HTTPException(status_code=400, detail="Student has not selected this course")
     
+    # Initialize course_selected as array if it's still an integer (migration support)
+    course_selected_list = course.course_selected if isinstance(course.course_selected, list) else []
+    
     # Remove course from student
-    student_courses.remove(course_id)
+    student_courses.remove(selection.course_id)
     student.student_courses = student_courses
     student.updated_at = datetime.now(timezone.utc)
     
-    # Decrement course selection count
-    course.course_selected = max(0, course.course_selected - 1)
+    # Remove student ID from course selected list
+    if selection.student_id in course_selected_list:
+        course_selected_list.remove(selection.student_id)
+    course.course_selected = course_selected_list
+    course.course_selected_count = len(course_selected_list)
     course.updated_at = datetime.now(timezone.utc)
     
+    # Explicitly mark as modified for SQLAlchemy to detect JSON changes
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(student, "student_courses")
+    flag_modified(course, "course_selected")
+    
     db.commit()
+    db.refresh(student)
+    db.refresh(course)
+    
     return {"success": True, "message": "Course deselected successfully"}
+
+
+# Available tags endpoints
+@app.get("/tags/available")
+async def get_available_tags(
+    tag_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_internal_token_header)
+):
+    """Get list of available tags for auto-completion"""
+    query = db.query(AvailableTag)
+    if tag_type:
+        query = query.filter(AvailableTag.tag_type == tag_type)
+    tags = query.order_by(AvailableTag.usage_count.desc(), AvailableTag.tag_name).all()
+    return {
+        "tags": [
+            {
+                "tag_name": tag.tag_name,
+                "tag_type": tag.tag_type,
+                "usage_count": tag.usage_count
+            }
+            for tag in tags
+        ]
+    }
+
+
+@app.post("/tags/add")
+async def add_available_tag(
+    tag_name: str,
+    tag_type: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_internal_token_header)
+):
+    """Add or update an available tag"""
+    if tag_type not in ['user', 'course']:
+        raise HTTPException(status_code=400, detail="tag_type must be 'user' or 'course'")
+    
+    # Check if tag already exists
+    existing = db.query(AvailableTag).filter(
+        AvailableTag.tag_name == tag_name,
+        AvailableTag.tag_type == tag_type
+    ).first()
+    
+    if existing:
+        existing.usage_count += 1
+        existing.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        return {"success": True, "message": "Tag usage count incremented"}
+    
+    # Create new tag
+    new_tag = AvailableTag(
+        tag_name=tag_name,
+        tag_type=tag_type,
+        usage_count=1
+    )
+    db.add(new_tag)
+    db.commit()
+    return {"success": True, "message": "Tag added successfully"}
+
+
+@app.post("/tags/sync")
+async def sync_available_tags(
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_internal_token_header)
+):
+    """Sync available tags from existing courses and students"""
+    # Get all unique tags from courses
+    courses = db.query(Course).all()
+    course_tags = set()
+    for course in courses:
+        if course.course_tags:
+            course_tags.update(course.course_tags)
+    
+    # Get all unique tags from students
+    students = db.query(StudentCourseData).all()
+    student_tags = set()
+    for student in students:
+        if student.student_tags:
+            student_tags.update(student.student_tags)
+    
+    # Add or update course tags
+    for tag_name in course_tags:
+        existing = db.query(AvailableTag).filter(
+            AvailableTag.tag_name == tag_name,
+            AvailableTag.tag_type == 'course'
+        ).first()
+        
+        if not existing:
+            new_tag = AvailableTag(tag_name=tag_name, tag_type='course', usage_count=1)
+            db.add(new_tag)
+    
+    # Add or update user tags
+    for tag_name in student_tags:
+        existing = db.query(AvailableTag).filter(
+            AvailableTag.tag_name == tag_name,
+            AvailableTag.tag_type == 'user'
+        ).first()
+        
+        if not existing:
+            new_tag = AvailableTag(tag_name=tag_name, tag_type='user', usage_count=1)
+            db.add(new_tag)
+    
+    db.commit()
+    return {
+        "success": True,
+        "message": "Tags synced successfully",
+        "course_tags_count": len(course_tags),
+        "user_tags_count": len(student_tags)
+    }
 
 
 # Health check

@@ -3,9 +3,15 @@ from fastapi import FastAPI, HTTPException, Depends, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, List
 import os
 import httpx
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables: root .env first, then service-level .env overrides
+load_dotenv()  # project root .env (fallbacks)
+load_dotenv(dotenv_path=Path(__file__).with_name('.env'), override=True)
 
 from backend.common import (
     AuthBase, Student, Teacher, Admin, RefreshToken, RegistrationCode, ResetCode,
@@ -14,6 +20,8 @@ from backend.common import (
     RegistrationCodeCreate, RegistrationCodeResponse,
     ResetCodeCreate, ResetCodeResponse,
     RefreshTokenResponse, AccessTokenResponse,
+    SystemSettingsResponse, SystemSettingsUpdate,
+    PasswordChangeRequest, TwoFASetupRequest, TwoFAVerifyRequest, TwoFADisableRequest,
     get_database_url, create_db_engine, create_session_factory, init_database,
     verify_password, get_password_hash,
     create_access_token, create_refresh_token, decode_token,
@@ -127,22 +135,28 @@ async def register_v1(
     db: Session = Depends(get_db)
 ):
     """Register user - phase 1: Create account and generate 2FA"""
-    # Verify registration code if provided
-    if user_data.registration_code:
-        reg_code = db.query(RegistrationCode).filter(
-            RegistrationCode.code == user_data.registration_code,
-            RegistrationCode.is_used == False,
-            RegistrationCode.expires_at > datetime.now(timezone.utc)
-        ).first()
-        
-        if not reg_code:
-            raise HTTPException(status_code=400, detail="Invalid or expired registration code")
-        
-        if reg_code.user_type != user_data.user_type:
-            raise HTTPException(status_code=400, detail="Registration code type mismatch")
-    else:
-        # For now, allow registration without code for testing
-        pass
+    # Check system settings for registration availability
+    settings = ensure_system_settings(db)
+    if user_data.user_type == "student" and not settings.student_registration_enabled:
+        raise HTTPException(status_code=403, detail="Student registration is currently disabled")
+    if user_data.user_type == "teacher" and not settings.teacher_registration_enabled:
+        raise HTTPException(status_code=403, detail="Teacher registration is currently disabled")
+    
+    # Verify registration code (now mandatory)
+    if not user_data.registration_code:
+        raise HTTPException(status_code=400, detail="Registration code is required")
+    
+    reg_code = db.query(RegistrationCode).filter(
+        RegistrationCode.code == user_data.registration_code,
+        RegistrationCode.is_used == False,
+        RegistrationCode.expires_at > datetime.now(timezone.utc)
+    ).first()
+    
+    if not reg_code:
+        raise HTTPException(status_code=400, detail="Invalid or expired registration code")
+    
+    if reg_code.user_type != user_data.user_type:
+        raise HTTPException(status_code=400, detail="Registration code type mismatch")
     
     # Check if user already exists in the auth database
     existing_user = await get_user_by_username(db, user_data.username, user_data.user_type)
@@ -177,9 +191,14 @@ async def register_v1(
         import httpx
         async with httpx.AsyncClient() as client:
             headers = {"Internal-Token": internal_token}
+            # Apply tags from registration code if available
+            student_tags = []
+            if user_data.registration_code and reg_code:
+                student_tags = reg_code.code_tags or []
+            
             student_payload = {
                 "student_name": user_data.username,  # Set to username initially
-                "student_tags": []
+                "student_tags": student_tags
             }
             response = await client.post(f"{data_node_url}/add/student", json=student_payload, headers=headers)
             if response.status_code != 201:
@@ -512,6 +531,93 @@ async def logout(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.post("/setup/2fa/v1")
+async def setup_2fa_v1(
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db)
+):
+    """Setup 2FA for student without 2FA - phase 1: Generate TOTP secret"""
+    try:
+        refresh_token = authorization.replace("Bearer ", "")
+        payload = decode_token(refresh_token)
+        
+        if not payload or payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Only students can setup 2FA
+        if get_user_type(user) != "student":
+            raise HTTPException(status_code=400, detail="Only students can setup 2FA")
+        
+        # Check if user already has 2FA
+        if has_2fa(user):
+            raise HTTPException(status_code=400, detail="User already has 2FA enabled")
+        
+        # Generate new TOTP secret
+        new_secret = generate_totp_secret()
+        
+        # Get TOTP URI for QR code
+        totp_uri = get_totp_uri(new_secret, user.username)
+        
+        return {
+            "totp_secret": new_secret,
+            "totp_uri": totp_uri,
+            "message": "Please scan QR code to setup 2FA."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
+@app.post("/setup/2fa/v2")
+async def setup_2fa_v2(
+    setup_data: dict,
+    authorization: str = Header(..., alias="Authorization"),
+    db: Session = Depends(get_db)
+):
+    """Setup 2FA for student - phase 2: Verify TOTP and save secret"""
+    try:
+        refresh_token = authorization.replace("Bearer ", "")
+        payload = decode_token(refresh_token)
+        
+        if not payload or payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Only students can setup 2FA
+        if get_user_type(user) != "student":
+            raise HTTPException(status_code=400, detail="Only students can setup 2FA")
+        
+        # Get secret and code from request
+        totp_secret = setup_data.get("totp_secret")
+        totp_code = setup_data.get("totp_code")
+        
+        if not totp_secret or not totp_code:
+            raise HTTPException(status_code=400, detail="Missing totp_secret or totp_code")
+        
+        # Verify the TOTP code with the provided secret
+        if not verify_totp(totp_secret, totp_code):
+            raise HTTPException(status_code=400, detail="Invalid 2FA code")
+        
+        # Save the TOTP secret to the user
+        set_totp_secret(user, totp_secret)
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "2FA setup successful. Please login again."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
 @app.post("/refresh", response_model=AccessTokenResponse)
 async def refresh_access_token(
     totp_data: User2FA,
@@ -683,30 +789,45 @@ async def add_admin(
     return {"success": True, "message": "Admin created successfully"}
 
 
-@app.post("/generate/registration-code", response_model=RegistrationCodeResponse)
+@app.post("/generate/registration-code")
 async def generate_registration_code_endpoint(
     code_data: RegistrationCodeCreate,
     current_admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Generate registration code (admin only)"""
-    code = generate_registration_code()
+    """Generate registration code(s) (admin only) - supports bulk generation"""
     expires_at = datetime.now(timezone.utc) + timedelta(days=code_data.expires_days)
     
-    db_code = RegistrationCode(
-        code=code,
-        user_type=code_data.user_type,
-        created_by=current_admin.admin_id,
-        expires_at=expires_at
-    )
-    db.add(db_code)
+    generated_codes = []
+    for _ in range(code_data.count):
+        code = generate_registration_code()
+        
+        db_code = RegistrationCode(
+            code=code,
+            user_type=code_data.user_type,
+            created_by=current_admin.admin_id,
+            expires_at=expires_at,
+            code_tags=code_data.code_tags or []
+        )
+        db.add(db_code)
+        
+        generated_codes.append({
+            "code": code,
+            "user_type": code_data.user_type,
+            "expires_at": expires_at,
+            "code_tags": code_data.code_tags
+        })
+    
     db.commit()
     
-    return {
-        "code": code,
-        "user_type": code_data.user_type,
-        "expires_at": expires_at
-    }
+    # Return single code format for backward compatibility if count=1
+    if code_data.count == 1:
+        return generated_codes[0]
+    else:
+        return {
+            "codes": generated_codes,
+            "count": len(generated_codes)
+        }
 
 
 @app.post("/generate/reset-code", response_model=ResetCodeResponse)
@@ -717,7 +838,7 @@ async def generate_reset_code_endpoint(
 ):
     """Generate 2FA reset code (admin only)"""
     # Find user
-    user = get_user_by_username(db, reset_data.username)
+    user = await get_user_by_username(db, reset_data.username)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -737,6 +858,43 @@ async def generate_reset_code_endpoint(
         "code": code,
         "username": user.username,
         "expires_at": expires_at
+    }
+
+
+@app.get("/admin/reset-codes")
+async def list_reset_codes(
+    page: int = 1,
+    page_size: int = 20,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """List all reset codes (admin only)"""
+    # Get total count
+    total = db.query(ResetCode).count()
+    
+    # Get paginated codes
+    db_codes = db.query(ResetCode).order_by(ResetCode.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
+    
+    codes_data = []
+    for code in db_codes:
+        # Get the username for this code
+        user = await get_user_by_id(db, code.user_id, "student")
+        username = user.username if user else "Unknown"
+        
+        codes_data.append({
+            "id": code.id,
+            "code": code.code,
+            "username": username,
+            "is_used": code.is_used,
+            "expires_at": code.expires_at.isoformat() if code.expires_at else None,
+            "created_at": code.created_at.isoformat() if code.created_at else None,
+        })
+    
+    return {
+        "codes": codes_data,
+        "total": total,
+        "page": page,
+        "page_size": page_size
     }
 
 
@@ -806,7 +964,12 @@ async def list_users(
         if search:
             query_admins = query_admins.filter(Admin.username.contains(search))
         total_admins = query_admins.count()
-        db_admins = query_admins.order_by(Admin.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
+        
+        # Apply pagination only if filtering by admin type specifically
+        if user_type == "admin":
+            db_admins = query_admins.order_by(Admin.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
+        else:
+            db_admins = query_admins.order_by(Admin.created_at.desc()).all()
         
         for admin in db_admins:
             all_users_data.append({
@@ -820,71 +983,55 @@ async def list_users(
             })
         total += total_admins
     
-    # For students and teachers, make API calls to data node
-    if not user_type or user_type in ["student", "teacher"]:
-        # Call the data node to get students and teachers
-        try:
-            # Use HTTPX to call the data node API
-            async with httpx.AsyncClient() as client:
-                # Prepare the internal token header
-                headers = {"Authorization": f"Bearer {INTERNAL_TOKEN}"}
-                
-                # First, get the count for pagination
-                if not user_type or user_type == "student":
-                    params = {"user_type": "student", "page": 1, "page_size": 1, "search": search}
-                    response = await client.get(f"{DATA_NODE_URL}/data/users", params=params, headers=headers)
-                    if response.status_code == 200:
-                        data = response.json()
-                        total_students = data.get("total", 0)
-                        total += total_students
-                        
-                        # Now get the actual paginated data if needed
-                        if not user_type or user_type == "student":
-                            params = {"user_type": "student", "page": page, "page_size": page_size, "search": search}
-                            response = await client.get(f"{DATA_NODE_URL}/data/users", params=params, headers=headers)
-                            if response.status_code == 200:
-                                student_data = response.json()
-                                for student in student_data.get("users", []):
-                                    # Normalize the student data to match our response format
-                                    all_users_data.append({
-                                        "user_id": student.get("user_id") or student.get("student_id"),
-                                        "username": student.get("username"),
-                                        "user_type": "student",
-                                        "is_active": student.get("is_active", True),
-                                        "totp_secret": student.get("totp_secret"),
-                                        "created_at": student.get("created_at"),
-                                        "updated_at": student.get("updated_at"),
-                                    })
-                
-                if not user_type or user_type == "teacher":
-                    params = {"user_type": "teacher", "page": 1, "page_size": 1, "search": search}
-                    response = await client.get(f"{DATA_NODE_URL}/data/users", params=params, headers=headers)
-                    if response.status_code == 200:
-                        data = response.json()
-                        total_teachers = data.get("total", 0)
-                        total += total_teachers
-                        
-                        # Now get the actual paginated data if needed
-                        if not user_type or user_type == "teacher":
-                            params = {"user_type": "teacher", "page": page, "page_size": page_size, "search": search}
-                            response = await client.get(f"{DATA_NODE_URL}/data/users", params=params, headers=headers)
-                            if response.status_code == 200:
-                                teacher_data = response.json()
-                                for teacher in teacher_data.get("users", []):
-                                    # Normalize the teacher data to match our response format
-                                    all_users_data.append({
-                                        "user_id": teacher.get("user_id") or teacher.get("teacher_id"),
-                                        "username": teacher.get("username"),
-                                        "user_type": "teacher",
-                                        "is_active": teacher.get("is_active", True),
-                                        "totp_secret": None,  # Teachers don't have 2FA
-                                        "created_at": teacher.get("created_at"),
-                                        "updated_at": teacher.get("updated_at"),
-                                    })
+    # Get students from local auth database
+    if not user_type or user_type == "student":
+        query_students = db.query(Student)
+        if search:
+            query_students = query_students.filter(Student.username.contains(search))
+        total_students = query_students.count()
         
-        except httpx.RequestError as e:
-            # Log the error and return an error response
-            raise HTTPException(status_code=500, detail=f"Error communicating with data node: {str(e)}")
+        # Apply pagination only if filtering by student type specifically
+        if user_type == "student":
+            db_students = query_students.order_by(Student.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
+        else:
+            db_students = query_students.order_by(Student.created_at.desc()).all()
+        
+        for student in db_students:
+            all_users_data.append({
+                "user_id": student.student_id,
+                "username": student.username,
+                "user_type": "student",
+                "is_active": student.is_active,
+                "totp_secret": student.totp_secret,
+                "created_at": student.created_at.isoformat() if student.created_at else None,
+                "updated_at": student.updated_at.isoformat() if student.updated_at else None,
+            })
+        total += total_students
+    
+    # Get teachers from local auth database
+    if not user_type or user_type == "teacher":
+        query_teachers = db.query(Teacher)
+        if search:
+            query_teachers = query_teachers.filter(Teacher.username.contains(search))
+        total_teachers = query_teachers.count()
+        
+        # Apply pagination only if filtering by teacher type specifically
+        if user_type == "teacher":
+            db_teachers = query_teachers.order_by(Teacher.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
+        else:
+            db_teachers = query_teachers.order_by(Teacher.created_at.desc()).all()
+        
+        for teacher in db_teachers:
+            all_users_data.append({
+                "user_id": teacher.teacher_id,
+                "username": teacher.username,
+                "user_type": "teacher",
+                "is_active": teacher.is_active,
+                "totp_secret": None,  # Teachers don't have 2FA
+                "created_at": teacher.created_at.isoformat() if teacher.created_at else None,
+                "updated_at": teacher.updated_at.isoformat() if teacher.updated_at else None,
+            })
+        total += total_teachers
     
     # Sort the combined list by created_at in descending order
     all_users_data.sort(key=lambda x: x['created_at'] or '', reverse=True)
@@ -1070,7 +1217,7 @@ async def reset_user_2fa_endpoint(
     if not username:
         raise HTTPException(status_code=400, detail="Username required")
     
-    user = get_user_by_username(db, username)
+    user = await get_user_by_username(db, username)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -1112,7 +1259,578 @@ async def toggle_user_status_endpoint(
         db.commit()
         return {"success": True, "message": f"Teacher {'activated' if is_active else 'deactivated'} successfully"}
     
+    admin = db.query(Admin).filter(Admin.admin_id == user_id).first()
+    if admin:
+        admin.is_active = is_active
+        db.commit()
+        return {"success": True, "message": f"Admin {'activated' if is_active else 'deactivated'} successfully"}
+    
     raise HTTPException(status_code=404, detail="User not found")
+
+
+@app.post("/admin/user/reset-password")
+async def reset_user_password_endpoint(
+    data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Reset user password (admin only) - generates new random password"""
+    import secrets
+    import string
+    
+    username = data.get("username")
+    user_type = data.get("user_type")
+    
+    if not username or not user_type:
+        raise HTTPException(status_code=400, detail="username and user_type required")
+    
+    # Generate a secure random password (12 characters)
+    alphabet = string.ascii_letters + string.digits + "!@#$%&*"
+    new_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+    new_password_hash = get_password_hash(new_password)
+    
+    # Update password in the appropriate table
+    if user_type == "student":
+        user = db.query(Student).filter(Student.username == username).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Student not found")
+        user.password_hash = new_password_hash
+    elif user_type == "teacher":
+        user = db.query(Teacher).filter(Teacher.username == username).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Teacher not found")
+        user.password_hash = new_password_hash
+    elif user_type == "admin":
+        user = db.query(Admin).filter(Admin.username == username).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Admin not found")
+        user.password_hash = new_password_hash
+    else:
+        raise HTTPException(status_code=400, detail="Invalid user type")
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Password reset successfully",
+        "new_password": new_password,
+        "username": username
+    }
+
+
+@app.post("/admin/student/update-tags")
+async def update_student_tags_endpoint(
+    data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Update student tags (admin only)"""
+    student_id = data.get("student_id")
+    student_tags = data.get("student_tags")
+    
+    if student_id is None or student_tags is None:
+        raise HTTPException(status_code=400, detail="student_id and student_tags required")
+    
+    # Verify student exists in auth database
+    student = db.query(Student).filter(Student.student_id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Update student tags in data node
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            headers = {"Internal-Token": internal_token}
+            payload = {
+                "student_id": student_id,
+                "student_tags": student_tags
+            }
+            response = await client.post(f"{data_node_url}/update/student", params={"student_id": student_id}, json=payload, headers=headers)
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail=f"Failed to update student tags: {response.text}")
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
+    
+    return {"success": True, "message": "Student tags updated successfully"}
+
+
+# Admin course management endpoints
+@app.get("/admin/courses")
+async def list_all_courses(
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = None,
+    course_type: Optional[str] = None,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """List all courses (admin only)"""
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            params = {"page": page, "page_size": page_size}
+            if search:
+                params["search"] = search
+            if course_type:
+                params["course_type"] = course_type
+                
+            headers = {"Internal-Token": internal_token}
+            response = await client.get(f"{data_node_url}/get/courses", params=params, headers=headers)
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail=f"Failed to fetch courses: {response.text}")
+            
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
+
+
+@app.post("/admin/course/update")
+async def update_course_admin(
+    data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Update course (admin only)"""
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    course_id = data.get("course_id")
+    if not course_id:
+        raise HTTPException(status_code=400, detail="course_id is required")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            headers = {"Internal-Token": internal_token}
+            response = await client.post(
+                f"{data_node_url}/update/course",
+                params={"course_id": course_id},
+                json=data,
+                headers=headers
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail=f"Failed to update course: {response.text}")
+            
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
+
+
+@app.post("/admin/course/delete")
+async def delete_course_admin(
+    data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Delete course (admin only)"""
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    course_id = data.get("course_id")
+    if not course_id:
+        raise HTTPException(status_code=400, detail="course_id is required")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            headers = {"Internal-Token": internal_token}
+            response = await client.post(
+                f"{data_node_url}/delete/course",
+                params={"course_id": course_id},
+                headers=headers
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail=f"Failed to delete course: {response.text}")
+            
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
+
+
+@app.post("/admin/courses/bulk-import")
+async def bulk_import_courses_admin(
+    courses: List[dict],
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Bulk import courses (admin only)"""
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            headers = {"Internal-Token": internal_token}
+            response = await client.post(
+                f"{data_node_url}/bulk/import/courses",
+                json=courses,
+                headers=headers
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail=f"Failed to import courses: {response.text}")
+            
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
+
+
+@app.post("/admin/courses/batch-assign-teacher")
+async def batch_assign_teacher_admin(
+    data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Batch assign teacher to courses (admin only)"""
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    course_ids = data.get("course_ids", [])
+    teacher_id = data.get("teacher_id")
+    
+    if not course_ids or not teacher_id:
+        raise HTTPException(status_code=400, detail="course_ids and teacher_id are required")
+    
+    # Verify teacher exists
+    teacher = db.query(Teacher).filter(Teacher.teacher_id == teacher_id).first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    
+    updated = []
+    errors = []
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            headers = {"Internal-Token": internal_token}
+            
+            for course_id in course_ids:
+                try:
+                    response = await client.post(
+                        f"{data_node_url}/update/course",
+                        params={"course_id": course_id},
+                        json={"course_teacher_id": teacher_id},
+                        headers=headers
+                    )
+                    
+                    if response.status_code == 200:
+                        updated.append(course_id)
+                    else:
+                        errors.append({
+                            "course_id": course_id,
+                            "error": response.text
+                        })
+                except Exception as e:
+                    errors.append({
+                        "course_id": course_id,
+                        "error": str(e)
+                    })
+        
+        return {
+            "success": True,
+            "updated_count": len(updated),
+            "error_count": len(errors),
+            "updated": updated,
+            "errors": errors
+        }
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
+
+
+# ===== System Settings Management =====
+def ensure_system_settings(db: Session):
+    """Ensure system settings exist, create with defaults if not"""
+    settings = db.query(SystemSettings).first()
+    if not settings:
+        settings = SystemSettings(
+            student_registration_enabled=True,
+            teacher_registration_enabled=True
+        )
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+
+@app.get("/admin/settings", response_model=SystemSettingsResponse)
+async def get_system_settings(
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Get system settings (admin only)"""
+    settings = ensure_system_settings(db)
+    return SystemSettingsResponse(
+        student_registration_enabled=settings.student_registration_enabled,
+        teacher_registration_enabled=settings.teacher_registration_enabled,
+        updated_at=settings.updated_at
+    )
+
+
+@app.put("/admin/settings", response_model=SystemSettingsResponse)
+async def update_system_settings(
+    settings_update: SystemSettingsUpdate,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Update system settings (admin only)"""
+    settings = ensure_system_settings(db)
+    
+    if settings_update.student_registration_enabled is not None:
+        settings.student_registration_enabled = settings_update.student_registration_enabled
+    if settings_update.teacher_registration_enabled is not None:
+        settings.teacher_registration_enabled = settings_update.teacher_registration_enabled
+    
+    settings.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(settings)
+    
+    return SystemSettingsResponse(
+        student_registration_enabled=settings.student_registration_enabled,
+        teacher_registration_enabled=settings.teacher_registration_enabled,
+        updated_at=settings.updated_at
+    )
+
+
+# ===== Refresh Token Endpoint =====
+@app.post("/auth/refresh")
+async def refresh_access_token(
+    refresh_token: str,
+    db: Session = Depends(get_db)
+):
+    """Exchange refresh token for new access and refresh tokens"""
+    try:
+        # Decode and validate refresh token
+        payload = decode_token(refresh_token)
+        
+        # Verify it's a refresh token
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        
+        user_id = payload.get("user_id")
+        user_type = payload.get("user_type")
+        username = payload.get("username")
+        
+        if not all([user_id, user_type, username]):
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+        
+        # Check if refresh token is revoked
+        token_hash = hash_token(refresh_token)
+        db_token = db.query(RefreshToken).filter(
+            RefreshToken.token_hash == token_hash
+        ).first()
+        
+        if not db_token or db_token.is_revoked or db_token.expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=401, detail="Refresh token is invalid or expired")
+        
+        # Verify user still exists and is active
+        user = await get_user_by_id(db, user_id, user_type)
+        if not user or not is_active(user):
+            raise HTTPException(status_code=401, detail="User not found or inactive")
+        
+        # Revoke old refresh token
+        db_token.is_revoked = True
+        db.commit()
+        
+        # Generate new tokens
+        new_access_token = create_access_token({
+            "user_id": user_id,
+            "username": username,
+            "user_type": user_type
+        })
+        
+        new_refresh_token = create_refresh_token({
+            "user_id": user_id,
+            "username": username,
+            "user_type": user_type
+        })
+        
+        # Store new refresh token in database
+        new_token_hash = hash_token(new_refresh_token)
+        new_db_token = RefreshToken(
+            user_id=user_id,
+            user_type=user_type,
+            token_hash=new_token_hash,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30)
+        )
+        db.add(new_db_token)
+        db.commit()
+        
+        return {
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "bearer"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid refresh token: {str(e)}")
+
+
+# ===== Password & 2FA Management Endpoints =====
+@app.post("/user/change-password")
+async def change_password(
+    password_change: PasswordChangeRequest,
+    current_user: dict = Depends(get_current_user_from_token),
+    db: Session = Depends(get_db)
+):
+    """Change user password (requires old password verification)"""
+    user_id = current_user.get("user_id")
+    user_type = current_user.get("user_type")
+    
+    # Get user from database
+    user = await get_user_by_id(db, user_id, user_type)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify old password
+    if not verify_password(password_change.old_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Incorrect old password")
+    
+    # Update password
+    user.password_hash = get_password_hash(password_change.new_password)
+    db.commit()
+    
+    return {"success": True, "message": "Password changed successfully"}
+
+
+@app.post("/user/2fa/setup")
+async def setup_2fa(
+    setup_request: TwoFASetupRequest,
+    current_user: dict = Depends(get_current_user_from_token),
+    db: Session = Depends(get_db)
+):
+    """Setup 2FA for user (verify password first)"""
+    user_id = current_user.get("user_id")
+    user_type = current_user.get("user_type")
+    
+    # Get user from database
+    user = await get_user_by_id(db, user_id, user_type)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify password
+    if not verify_password(setup_request.password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Incorrect password")
+    
+    # Check if 2FA is already enabled
+    if has_2fa(user):
+        raise HTTPException(status_code=400, detail="2FA is already enabled")
+    
+    # Generate TOTP secret
+    totp_secret = generate_totp_secret()
+    
+    # Generate QR code URI
+    totp_uri = get_totp_uri(
+        secret=totp_secret,
+        issuer="Course Selection System",
+        account_name=f"{user_type}:{user.username}"
+    )
+    
+    # Temporarily store secret (will be confirmed in verify endpoint)
+    # For now, store it directly - in production, might want to use a temporary storage
+    user.totp_secret = totp_secret
+    if user_type == "student":
+        user.has_2fa = True
+    elif user_type == "teacher" and hasattr(user, 'has_2fa'):
+        user.has_2fa = True
+    db.commit()
+    
+    return {
+        "success": True,
+        "totp_secret": totp_secret,
+        "totp_uri": totp_uri,
+        "message": "2FA setup initiated. Please verify with a code from your authenticator app."
+    }
+
+
+@app.post("/user/2fa/verify")
+async def verify_2fa_setup(
+    verify_request: TwoFAVerifyRequest,
+    current_user: dict = Depends(get_current_user_from_token),
+    db: Session = Depends(get_db)
+):
+    """Verify 2FA setup with TOTP code"""
+    user_id = current_user.get("user_id")
+    user_type = current_user.get("user_type")
+    
+    # Get user from database
+    user = await get_user_by_id(db, user_id, user_type)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify the TOTP code
+    if not get_totp_secret(user):
+        raise HTTPException(status_code=400, detail="2FA not set up")
+    
+    if not verify_totp(get_totp_secret(user), verify_request.totp_code):
+        raise HTTPException(status_code=400, detail="Invalid 2FA code")
+    
+    return {
+        "success": True,
+        "message": "2FA verified successfully"
+    }
+
+
+@app.post("/user/2fa/disable")
+async def disable_2fa(
+    disable_request: TwoFADisableRequest,
+    current_user: dict = Depends(get_current_user_from_token),
+    db: Session = Depends(get_db)
+):
+    """Disable 2FA for user (requires password and current 2FA code)"""
+    user_id = current_user.get("user_id")
+    user_type = current_user.get("user_type")
+    
+    # Get user from database
+    user = await get_user_by_id(db, user_id, user_type)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify password
+    if not verify_password(disable_request.password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Incorrect password")
+    
+    # Verify 2FA code
+    if not has_2fa(user):
+        raise HTTPException(status_code=400, detail="2FA is not enabled")
+    
+    if not verify_totp(get_totp_secret(user), disable_request.totp_code):
+        raise HTTPException(status_code=400, detail="Invalid 2FA code")
+    
+    # Disable 2FA
+    user.totp_secret = None
+    if user_type == "student":
+        user.has_2fa = False
+    elif user_type == "teacher" and hasattr(user, 'has_2fa'):
+        user.has_2fa = False
+    db.commit()
+    
+    return {"success": True, "message": "2FA disabled successfully"}
+
+
+@app.get("/user/2fa/status")
+async def get_2fa_status(
+    current_user: dict = Depends(get_current_user_from_token),
+    db: Session = Depends(get_db)
+):
+    """Get current user's 2FA status"""
+    user_id = current_user.get("user_id")
+    user_type = current_user.get("user_type")
+    
+    # Get user from database
+    user = await get_user_by_id(db, user_id, user_type)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "has_2fa": has_2fa(user),
+        "user_type": user_type,
+        "username": user.username
+    }
 
 
 # Health check

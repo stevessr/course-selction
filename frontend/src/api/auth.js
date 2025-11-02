@@ -59,9 +59,14 @@ const authApi = {
   },
 
   // Generate registration code
-  generateRegistrationCode(accessToken, userType, expiresDays = 7) {
+  generateRegistrationCode(accessToken, userType, expiresDays = 7, codeTags = [], count = 1) {
     return api.post('/auth/generate/registration-code',
-      { user_type: userType, expires_days: expiresDays },
+      { 
+        user_type: userType, 
+        expires_days: expiresDays,
+        code_tags: codeTags,
+        count: count
+      },
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
   },

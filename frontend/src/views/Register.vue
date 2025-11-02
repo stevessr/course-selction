@@ -15,7 +15,11 @@
             { min: 3, message: 'Username must be at least 3 characters!' }
           ]"
         >
-          <a-input v-model:value="registerForm.username" placeholder="Username" />
+          <a-input 
+            v-model:value="registerForm.username" 
+            placeholder="Username"
+            autocomplete="username"
+          />
         </a-form-item>
 
         <a-form-item
@@ -26,7 +30,11 @@
             { min: 6, message: 'Password must be at least 6 characters!' }
           ]"
         >
-          <a-input-password v-model:value="registerForm.password" placeholder="Password" />
+          <a-input-password 
+            v-model:value="registerForm.password" 
+            placeholder="Password"
+            autocomplete="new-password"
+          />
         </a-form-item>
 
         <a-form-item
@@ -221,7 +229,7 @@ const cancelRegistration = () => {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: cornflowerblue;
   padding: 20px;
 }
 

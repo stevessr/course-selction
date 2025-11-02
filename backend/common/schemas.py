@@ -148,6 +148,12 @@ class CourseSelectionRequest(BaseModel):
     course_id: int = Field(..., ge=1)
 
 
+class CourseSelectionData(BaseModel):
+    """Schema for internal course selection data (used by queue_node -> data_node)"""
+    student_id: int = Field(..., ge=1)
+    course_id: int = Field(..., ge=1)
+
+
 class QueueTaskResponse(BaseModel):
     success: bool
     message: str
@@ -170,12 +176,20 @@ class AdminLogin(BaseModel):
 class RegistrationCodeCreate(BaseModel):
     user_type: str = Field(..., pattern="^(student|teacher)$")
     expires_days: int = Field(default=7, ge=1, le=365)
+    code_tags: Optional[List[str]] = Field(default_factory=list)
+    count: int = Field(default=1, ge=1, le=100)  # Number of codes to generate
 
 
 class RegistrationCodeResponse(BaseModel):
     code: str
     user_type: str
     expires_at: datetime
+    code_tags: Optional[List[str]] = None
+
+
+class BulkRegistrationCodeResponse(BaseModel):
+    codes: List[RegistrationCodeResponse]
+    count: int
 
 
 class ResetCodeCreate(BaseModel):
@@ -231,3 +245,35 @@ class QueueTaskStatus(BaseModel):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     position: Optional[int] = None
+
+
+# System Settings
+class SystemSettingsResponse(BaseModel):
+    student_registration_enabled: bool
+    teacher_registration_enabled: bool
+    updated_at: datetime
+
+
+class SystemSettingsUpdate(BaseModel):
+    student_registration_enabled: Optional[bool] = None
+    teacher_registration_enabled: Optional[bool] = None
+
+
+# Password Change
+class PasswordChangeRequest(BaseModel):
+    old_password: str
+    new_password: str = Field(..., min_length=6)
+
+
+# 2FA Management
+class TwoFASetupRequest(BaseModel):
+    password: str  # Verify password before setup
+
+
+class TwoFAVerifyRequest(BaseModel):
+    totp_code: str = Field(..., pattern=r"^\d{6}$")
+
+
+class TwoFADisableRequest(BaseModel):
+    password: str  # Verify password before disabling
+    totp_code: str = Field(..., pattern=r"^\d{6}$")  # Verify current 2FA code

@@ -19,7 +19,12 @@
           name="username"
           :rules="[{ required: true, message: 'Please input your username!' }]"
         >
-          <a-input v-model:value="loginForm.username" placeholder="Username" size="large" />
+          <a-input 
+            v-model:value="loginForm.username" 
+            placeholder="Username" 
+            size="large"
+            autocomplete="username"
+          />
         </a-form-item>
 
         <a-form-item
@@ -27,7 +32,12 @@
           name="password"
           :rules="[{ required: true, message: 'Please input your password!' }]"
         >
-          <a-input-password v-model:value="loginForm.password" placeholder="Password" size="large" />
+          <a-input-password 
+            v-model:value="loginForm.password" 
+            placeholder="Password" 
+            size="large"
+            autocomplete="current-password"
+          />
         </a-form-item>
 
         <a-form-item>
@@ -63,7 +73,7 @@ const loading = ref(false)
 
 // Check if we have a valid refresh token on mount
 onMounted(async () => {
-  if (authStore.refreshToken) {
+  if (authStore.refreshToken?.value) {
     // Teachers don't require 2FA, try direct login
     loading.value = true
     try {

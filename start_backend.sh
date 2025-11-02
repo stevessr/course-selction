@@ -8,6 +8,24 @@ NC='\033[0m' # No Color
 
 PIDS_FILE=".backend_pids"
 
+# Load env vars from project root .env if present
+load_root_env() {
+    if [ -f ".env" ]; then
+        echo_msg "${GREEN}Loading environment from ./.env${NC}"
+        # Export all variables defined by sourcing .env
+        set -a
+        # shellcheck disable=SC1091
+        . ./.env
+        set +a
+        # Optional: show a couple of important ones if set
+        if [ -n "${INTERNAL_TOKEN:-}" ]; then echo_msg "INTERNAL_TOKEN is set"; fi
+        if [ -n "${USE_SOCKETS:-}" ]; then echo_msg "USE_SOCKETS=${USE_SOCKETS}"; fi
+        if [ -n "${SOCKET_DIR:-}" ]; then echo_msg "SOCKET_DIR=${SOCKET_DIR}"; fi
+    else
+        echo_msg "${YELLOW}No .env found in project root; using defaults${NC}"
+    fi
+}
+
 echo_msg() { printf "%b\n" "$1"; }
 
 create_envs() {
@@ -21,12 +39,33 @@ create_envs() {
 
 start_services() {
     echo_msg "${GREEN}Starting Course Selection System Backend Services${NC}"
+    load_root_env
     create_envs
 
-    # Prefer project virtualenv Python if available
-    PY_BIN="python"
+    # Select Python interpreter robustly
+    # Prefer project virtualenv only if it's healthy (can import encodings)
+    PY_BIN="python3"
+    if command -v python3 >/dev/null 2>&1; then
+        PY_BIN="python3"
+    elif command -v python >/dev/null 2>&1; then
+        PY_BIN="python"
+    fi
+
     if [ -x ".venv/bin/python" ]; then
-        PY_BIN=".venv/bin/python"
+        if ".venv/bin/python" - <<'EOF'
+import sys
+try:
+    import encodings  # minimal sanity check of venv
+except Exception as e:
+    sys.exit(1)
+else:
+    sys.exit(0)
+EOF
+        then
+            PY_BIN=".venv/bin/python"
+        else
+            echo_msg "${YELLOW}Warning: .venv appears broken (cannot import encodings). Falling back to system Python (${PY_BIN}).${NC}"
+        fi
     fi
 
     # Start services in background and record PIDs

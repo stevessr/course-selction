@@ -60,9 +60,63 @@ const adminApi = {
     })
   },
 
+  // Update student tags
+  updateStudentTags(accessToken, studentId, studentTags) {
+    return api.post('/auth/admin/student/update-tags',
+      { student_id: studentId, student_tags: studentTags },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
   // Course Management (Admin access)
   
-  // Import courses from CSV
+  // List all courses
+  listCourses(accessToken, page = 1, pageSize = 20, search = '', courseType = null) {
+    return api.get('/auth/admin/courses', {
+      params: { page, page_size: pageSize, search, course_type: courseType },
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+  },
+
+  // Update course
+  updateCourse(accessToken, courseData) {
+    return api.post('/auth/admin/course/update', courseData, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+  },
+
+  // Delete course
+  deleteCourse(accessToken, courseId) {
+    return api.post('/auth/admin/course/delete', 
+      { course_id: courseId },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
+  // Bulk import courses
+  bulkImportCourses(accessToken, coursesData) {
+    return api.post('/auth/admin/courses/bulk-import', coursesData, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+  },
+
+  // Batch assign teacher to courses
+  batchAssignTeacher(accessToken, courseIds, teacherId) {
+    return api.post('/auth/admin/courses/batch-assign-teacher', 
+      { course_ids: courseIds, teacher_id: teacherId },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
+  // Export users
+  exportUsers(accessToken, userType = null, userIds = []) {
+    return api.post('/auth/admin/users/export',
+      { user_type: userType, user_ids: userIds },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+  
+  // Import courses from CSV (old endpoint - keep for compatibility)
   importCourses(accessToken, formData) {
     return api.post('/teacher/courses/import', formData, {
       headers: {

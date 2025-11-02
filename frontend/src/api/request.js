@@ -36,9 +36,22 @@ api.interceptors.response.use(
       })
     }
     
-    // Check if the error is due to invalid token
+    // Extract error message safely
+    let message = 'An error occurred';
+    if (error.response?.data) {
+      // FastAPI returns errors in 'detail' field
+      if (typeof error.response.data.detail === 'string') {
+        message = error.response.data.detail;
+      } else if (typeof error.response.data.message === 'string') {
+        message = error.response.data.message;
+      } else if (typeof error.response.data === 'string') {
+        message = error.response.data;
+      }
+    } else if (error.message) {
+      message = error.message;
+    }
+    
     const status = error.response?.status;
-    const message = error.response?.data?.detail || error.message || 'An error occurred';
     
     // If the error is due to invalid token (status 401) or the message contains "Invalid token"
     if (status === 401 || (typeof message === 'string' && message.includes('Invalid token'))) {
@@ -49,7 +62,12 @@ api.interceptors.response.use(
       });
     }
     
-    return Promise.reject(new Error(message))
+    // Create a proper error object with the message
+    const errorObj = new Error(message);
+    errorObj.response = error.response;
+    errorObj.status = status;
+    
+    return Promise.reject(errorObj)
   }
 )
 

@@ -36,10 +36,23 @@ cd ../queue_node && cp .env.example .env
 cd ../..
 ```
 
-**Important:** Update the `INTERNAL_TOKEN` in all `.env` files to the same secure value:
+**Important:** Update the following values in all applicable `.env` files:
 
+1. **INTERNAL_TOKEN** - Must be the same in all services for inter-service communication:
 ```env
 INTERNAL_TOKEN=your-secure-random-token-here-change-this
+```
+
+2. **JWT_SECRET_KEY** - Must be the same in auth_node, student_node, and teacher_node for JWT token validation:
+```env
+JWT_SECRET_KEY=your-secure-jwt-secret-key-here-change-this
+```
+
+**⚠️ CRITICAL:** If `JWT_SECRET_KEY` is not set or differs between services, students and teachers will get 401 Unauthorized errors after login!
+
+You can generate secure random values with:
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
 ### 3. Start backend services
@@ -197,6 +210,27 @@ Each service provides interactive API documentation (Swagger UI):
 - Secure token storage and revocation
 
 ## Troubleshooting
+
+### 401 Unauthorized errors for students/teachers after login
+
+**Symptom:** `/api/auth/get/user` works but `/api/student/courses/available` or `/api/teacher/courses` returns 401 with "Invalid authentication credentials"
+
+**Cause:** JWT_SECRET_KEY is not configured or differs between services
+
+**Solution:** 
+1. Ensure JWT_SECRET_KEY is set in `.env` files for auth_node, student_node, and teacher_node
+2. The JWT_SECRET_KEY value must be **exactly the same** in all three services
+3. Restart all backend services after updating the .env files
+
+Generate a secure key:
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Then add it to each .env file:
+```env
+JWT_SECRET_KEY=your-generated-key-here
+```
 
 ### Backend services won't start
 - Check if ports 8001-8005 are available

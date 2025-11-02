@@ -20,12 +20,12 @@ export default defineConfig({
       '/api/student': {
         target: 'http://localhost:8004',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/student/, ''),
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
       '/api/teacher': {
         target: 'http://localhost:8003',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/teacher/, ''),
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
       '/api/data': {
         target: 'http://localhost:8001',
