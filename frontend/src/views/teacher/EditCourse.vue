@@ -118,7 +118,7 @@ watch(selectedDays, (newDays) => {
 
 // Load course data
 const loadCourse = async () => {
-  const courseId = route.params.id
+  const courseId = parseInt(route.params.id)
   if (!courseId) {
     message.error('Course ID is required')
     router.push('/teacher/courses')
@@ -160,7 +160,7 @@ const loadCourse = async () => {
 }
 
 const handleSubmit = async () => {
-  const courseId = route.params.id
+  const courseId = parseInt(route.params.id)
   loading.value = true
   try {
     await teacherApi.updateCourse(
