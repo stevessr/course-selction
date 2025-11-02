@@ -63,6 +63,11 @@ const routes = [
         name: 'StudentSchedule',
         component: () => import('@/views/student/Schedule.vue'),
       },
+      {
+        path: 'settings',
+        name: 'StudentSettings',
+        component: () => import('@/views/student/Settings.vue'),
+      },
     ],
   },
   {
@@ -85,6 +90,11 @@ const routes = [
         path: 'edit/:id',
         name: 'TeacherEditCourse',
         component: () => import('@/views/teacher/EditCourse.vue'),
+      },
+      {
+        path: 'settings',
+        name: 'TeacherSettings',
+        component: () => import('@/views/teacher/Settings.vue'),
       },
     ],
   },

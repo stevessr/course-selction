@@ -34,6 +34,18 @@ const adminApi = {
     )
   },
 
+  // Reset user password
+  resetUserPassword(accessToken, username, userType, newPassword = null) {
+    const data = { username, user_type: userType }
+    if (newPassword) {
+      data.new_password = newPassword
+    }
+    return api.post('/auth/admin/user/reset-password',
+      data,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
   // Toggle user status (activate/deactivate)
   toggleUserStatus(accessToken, userId, isActive) {
     return api.post('/auth/admin/user/toggle-status',

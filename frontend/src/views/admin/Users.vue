@@ -707,7 +707,6 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/store/auth'
 import adminApi from '@/api/admin'
-import axios from 'axios'
 import {
   PlusOutlined,
   UploadOutlined,
@@ -1148,27 +1147,18 @@ const resetPassword = async () => {
 
   try {
     resetPasswordLoading.value = true
-    const requestData = {
-      username: selectedUser.value.username,
-      user_type: selectedUser.value.user_type,
-    }
     
-    // Add custom password if in custom mode
-    if (passwordResetMode.value === 'custom') {
-      requestData.new_password = customPassword.value
-    }
+    // Prepare password parameter
+    const newPassword = passwordResetMode.value === 'custom' ? customPassword.value : null
 
-    const response = await axios.post(
-      '/api/auth/admin/user/reset-password',
-      requestData,
-      {
-        headers: {
-          Authorization: `Bearer ${authStore.accessToken}`,
-        },
-      }
+    const response = await adminApi.resetUserPassword(
+      authStore.accessToken?.value || authStore.accessToken,
+      selectedUser.value.username,
+      selectedUser.value.user_type,
+      newPassword
     )
     
-    newPasswordData.value = response.data
+    newPasswordData.value = response
     message.success('密码重置成功')
   } catch (error) {
     const errorDetail = error.response?.data?.detail || error.message
