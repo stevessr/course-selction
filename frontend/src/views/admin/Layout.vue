@@ -25,6 +25,9 @@
           <a-menu-item key="courses" @click="$router.push('/admin/courses')">
             Course Management
           </a-menu-item>
+          <a-menu-item key="tags" @click="$router.push('/admin/tags')">
+            Tag Management
+          </a-menu-item>
           <a-menu-item key="codes" @click="$router.push('/admin/codes')">
             Registration Codes
           </a-menu-item>
