@@ -1377,11 +1377,14 @@ async def update_student_tags_endpoint(
     try:
         async with httpx.AsyncClient() as client:
             headers = {"Internal-Token": internal_token}
-            payload = {
-                "student_id": student_id,
-                "student_tags": student_tags
-            }
-            response = await client.post(f"{data_node_url}/update/student", params={"student_id": student_id}, json=payload, headers=headers)
+            # data_node expects student_id and student_tags as query params;
+            # student_tags is a List[str] query param (repeated keys)
+            params = {"student_id": student_id, "student_tags": student_tags}
+            response = await client.post(
+                f"{data_node_url}/update/student",
+                params=params,
+                headers=headers
+            )
             if response.status_code != 200:
                 raise HTTPException(status_code=500, detail=f"Failed to update student tags: {response.text}")
     except httpx.HTTPError as e:
