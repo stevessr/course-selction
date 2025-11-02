@@ -1,0 +1,59 @@
+[project]
+name = "course-selection-system"
+version = "0.1.0"
+description = "A student course selection system with FastAPI backend and Vue3 frontend"
+authors = [
+    {name = "Course Selection Team"}
+]
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "sqlalchemy>=2.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.6",
+    "pyotp>=2.9.0",
+    "qrcode>=7.4.2",
+    "redis>=5.0.0",
+    "httpx>=0.25.0",
+    "python-dotenv>=1.0.0",
+    "click>=8.1.0",
+    "tabulate>=0.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+]
+
+[project.scripts]
+course-cli = "backend.common.cli:cli"
+course-db-edit = "backend.common.db_edit:db_edit"
+
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["backend*", "common*"]
+exclude = ["frontend*", "ui-of-course-selection*"]
