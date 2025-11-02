@@ -22,7 +22,7 @@
       </a-form-item>
       <a-form-item label="Time Begin" name="course_time_begin" :rules="[{ required: true, message: 'Please select start time' }]">
         <a-time-picker
-          v-model:value="timeBegin"
+          v-model:value="form.course_time_begin"
           format="HH:mm"
           :minuteStep="5"
           style="width: 100%"
@@ -31,7 +31,7 @@
       </a-form-item>
       <a-form-item label="Time End" name="course_time_end" :rules="[{ required: true, message: 'Please select end time' }]">
         <a-time-picker
-          v-model:value="timeEnd"
+          v-model:value="form.course_time_end"
           format="HH:mm"
           :minuteStep="5"
           style="width: 100%"
@@ -90,9 +90,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const loading = ref(false)
 
-// Time picker values (dayjs objects)
-const timeBegin = ref(dayjs('08:00', 'HH:mm'))
-const timeEnd = ref(dayjs('09:50', 'HH:mm'))
+// Note: keep time values inside the form model so a-form can validate them
 
 const weekDays = [
   { label: 'Monday', value: 'monday' },
@@ -117,6 +115,9 @@ const form = ref({
   course_tags: [],
   course_notes: '',
   course_cost: 0,
+  // time fields stored as dayjs objects for the time pickers
+  course_time_begin: dayjs('08:00', 'HH:mm'),
+  course_time_end: dayjs('09:50', 'HH:mm'),
 })
 
 // Update course_schedule based on selected days
@@ -138,8 +139,11 @@ const timeToInt = (time) => {
 
 const handleSubmit = async () => {
   // Validate time range
-  if (timeBegin.value && timeEnd.value) {
-    if (timeEnd.value.isBefore(timeBegin.value) || timeEnd.value.isSame(timeBegin.value)) {
+  if (form.value.course_time_begin && form.value.course_time_end) {
+    if (
+      form.value.course_time_end.isBefore(form.value.course_time_begin) ||
+      form.value.course_time_end.isSame(form.value.course_time_begin)
+    ) {
       message.error('End time must be after start time')
       return
     }
@@ -150,8 +154,8 @@ const handleSubmit = async () => {
     // Convert time picker values to integer format
     const courseData = {
       ...form.value,
-      course_time_begin: timeToInt(timeBegin.value),
-      course_time_end: timeToInt(timeEnd.value),
+      course_time_begin: timeToInt(form.value.course_time_begin),
+      course_time_end: timeToInt(form.value.course_time_end),
     }
 
     await teacherApi.createCourse(authStore.accessToken?.value || authStore.accessToken, courseData)
