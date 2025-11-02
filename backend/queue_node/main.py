@@ -353,6 +353,12 @@ async def health_check(db: Session = Depends(get_db)):
         }
 
 
+# Simple health endpoint expected by tests
+@app.get("/health")
+async def health_simple():
+    return {"status": "healthy", "service": "queue_node"}
+
+
 if __name__ == "__main__":
     import uvicorn
     # Get socket or HTTP config based on environment

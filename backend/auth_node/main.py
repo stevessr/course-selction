@@ -617,7 +617,7 @@ async def get_user_info(
 
 
 # Admin endpoints
-@app.post("/login/admin", response_model=AccessTokenResponse)
+@app.post("/login/admin")
 async def admin_login(
     login_data: AdminLogin,
     db: Session = Depends(get_db)
@@ -634,9 +634,27 @@ async def admin_login(
         "username": admin.username,
         "user_type": "admin"
     }, expires_delta=timedelta(hours=8))
+
+    # Also generate an admin refresh token for consistency with tests
+    refresh_token = create_refresh_token({
+        "user_id": admin.admin_id,
+        "username": admin.username,
+        "user_type": "admin"
+    })
+
+    # Store refresh token hash (so it can be revoked later if needed)
+    token_hash = hash_token(refresh_token)
+    db_token = RefreshToken(
+        user_id=admin.admin_id,
+        token_hash=token_hash,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7)
+    )
+    db.add(db_token)
+    db.commit()
     
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
         "expires_in": 8 * 3600
     }

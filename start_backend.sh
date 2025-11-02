@@ -23,33 +23,39 @@ start_services() {
     echo_msg "${GREEN}Starting Course Selection System Backend Services${NC}"
     create_envs
 
+    # Prefer project virtualenv Python if available
+    PY_BIN="python"
+    if [ -x ".venv/bin/python" ]; then
+        PY_BIN=".venv/bin/python"
+    fi
+
     # Start services in background and record PIDs
     echo_msg "${GREEN}Starting Data Node (port 8001)...${NC}"
-    python -m backend.data_node.main &
+    $PY_BIN -m backend.data_node.main &
     DATA_PID=$!
 
     sleep 2
 
     echo_msg "${GREEN}Starting Auth Node (port 8002)...${NC}"
-    python -m backend.auth_node.main &
+    $PY_BIN -m backend.auth_node.main &
     AUTH_PID=$!
 
     sleep 2
 
     echo_msg "${GREEN}Starting Teacher Node (port 8003)...${NC}"
-    python -m backend.teacher_node.main &
+    $PY_BIN -m backend.teacher_node.main &
     TEACHER_PID=$!
 
     sleep 2
 
     echo_msg "${GREEN}Starting Student Node (port 8004)...${NC}"
-    python -m backend.student_node.main &
+    $PY_BIN -m backend.student_node.main &
     STUDENT_PID=$!
 
     sleep 2
 
     echo_msg "${GREEN}Starting Queue Node (port 8005)...${NC}"
-    python -m backend.queue_node.main &
+    $PY_BIN -m backend.queue_node.main &
     QUEUE_PID=$!
 
     # Save PIDs to file for relative stop
