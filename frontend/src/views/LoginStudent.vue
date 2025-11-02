@@ -177,15 +177,11 @@ onMounted(async () => {
     const statusResult = await authStore.check2FAStatus()
     
     if (statusResult.success) {
-      if (statusResult.user_type === 'student' && !statusResult.has_2fa) {
-        // Student without 2FA, redirect to setup page
-        message.warning('请设置双因素认证 / Please setup 2FA')
-        router.push('/student/setup-2fa')
-      } else if (statusResult.has_2fa) {
+      if (statusResult.has_2fa) {
         // User has 2FA enabled, show 2FA screen
         needsTwoFactor.value = true
       } else {
-        // Teacher without 2FA, login directly
+        // Student without 2FA, login directly
         loading.value = true
         try {
           const result = await authStore.loginNo2FA()
@@ -222,12 +218,11 @@ const handleLogin = async () => {
       // Check if user has 2FA enabled
       const statusResult = await authStore.check2FAStatus()
       
-      if (statusResult.success && statusResult.user_type === 'student' && !statusResult.has_2fa) {
-        // Student without 2FA, redirect to setup page
-        message.warning('请设置双因素认证 / Please setup 2FA')
-        router.push('/student/setup-2fa')
-      } else if (statusResult.success && !statusResult.has_2fa) {
-        // Teacher without 2FA, login directly
+      if (statusResult.success && statusResult.has_2fa) {
+        // 2FA is enabled, show 2FA screen
+        needsTwoFactor.value = true
+      } else {
+        // Student without 2FA, login directly
         const loginResult = await authStore.loginNo2FA()
         if (loginResult.success) {
           message.success('Login successful')
@@ -235,9 +230,6 @@ const handleLogin = async () => {
         } else {
           message.error(loginResult.error || 'Login failed')
         }
-      } else {
-        // 2FA is enabled, show 2FA screen
-        needsTwoFactor.value = true
       }
     } else {
       message.error(result.error || 'Login failed')

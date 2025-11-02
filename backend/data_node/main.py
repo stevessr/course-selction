@@ -78,7 +78,7 @@ async def add_course(
     teacher = db.query(TeacherCourseData).filter(TeacherCourseData.teacher_id == course.course_teacher_id).first()
 
     # Create course
-    db_course = Course(**course.model_dump(), course_selected=0)
+    db_course = Course(**course.model_dump(), course_selected=[], course_selected_count=0)
     db.add(db_course)
     db.commit()
     db.refresh(db_course)
@@ -91,12 +91,12 @@ async def add_course(
             teacher.teacher_courses = teacher_courses
             db.commit()
 
-    # Calculate course_left
-    course_dict = {
-        **db_course.__dict__,
-        "course_left": db_course.course_capacity - db_course.course_selected
-    }
-    return course_dict
+    # Calculate course_left and add it as an attribute for response
+    # Use course_selected_count for calculation
+    db_course.course_left = db_course.course_capacity - db_course.course_selected_count
+    # Set course_selected to count for API response (schema expects int)
+    db_course.course_selected = db_course.course_selected_count
+    return db_course
 
 
 @app.get("/courses", response_model=List[CourseResponse])
@@ -106,13 +106,10 @@ async def list_courses(
 ):
     """List all courses"""
     courses = db.query(Course).all()
-    results = []
     for c in courses:
-        results.append({
-            **c.__dict__,
-            "course_left": c.course_capacity - (c.course_selected or 0)
-        })
-    return results
+        c.course_left = c.course_capacity - c.course_selected_count
+        c.course_selected = c.course_selected_count  # Set to count for response
+    return courses
 
 
 @app.post("/update/course", response_model=CourseResponse)
@@ -136,11 +133,9 @@ async def update_course(
     db.commit()
     db.refresh(db_course)
     
-    course_dict = {
-        **db_course.__dict__,
-        "course_left": db_course.course_capacity - db_course.course_selected
-    }
-    return course_dict
+    db_course.course_left = db_course.course_capacity - db_course.course_selected_count
+    db_course.course_selected = db_course.course_selected_count  # Set to count for response
+    return db_course
 
 
 @app.post("/delete/course")
@@ -204,7 +199,8 @@ async def bulk_import_courses(
                 course_type=course_data.course_type,
                 course_location=course_data.course_location,
                 course_capacity=course_data.course_capacity,
-                course_selected=0,
+                course_selected=[],
+                course_selected_count=0,
                 course_time_begin=course_data.course_time_begin,
                 course_time_end=course_data.course_time_end,
                 course_teacher_id=course_data.course_teacher_id if hasattr(course_data, 'course_teacher_id') else None,
@@ -246,11 +242,9 @@ async def get_course(
     if not db_course:
         raise HTTPException(status_code=404, detail="Course not found")
     
-    course_dict = {
-        **db_course.__dict__,
-        "course_left": db_course.course_capacity - db_course.course_selected
-    }
-    return course_dict
+    db_course.course_left = db_course.course_capacity - db_course.course_selected_count
+    db_course.course_selected = db_course.course_selected_count  # Set to count for response
+    return db_course
 
 
 @app.get("/get/courses")
@@ -273,11 +267,9 @@ async def get_courses(
     
     result = []
     for course in courses:
-        course_dict = {
-            **course.__dict__,
-            "course_left": course.course_capacity - course.course_selected
-        }
-        result.append(course_dict)
+        course.course_left = course.course_capacity - course.course_selected_count
+        course.course_selected = course.course_selected_count  # Set to count for response
+        result.append(course)
     
     return {"courses": result, "total": len(result)}
 
@@ -344,7 +336,12 @@ async def delete_student(
     for course_id in db_student.student_courses or []:
         course = db.query(Course).filter(Course.course_id == course_id).first()
         if course:
-            course.course_selected = max(0, course.course_selected - 1)
+            # Remove student from course_selected list
+            if isinstance(course.course_selected, list) and student_id in course.course_selected:
+                course.course_selected.remove(student_id)
+                flag_modified(course, "course_selected")
+            # Update count
+            course.course_selected_count = max(0, course.course_selected_count - 1)
 
     db.delete(db_student)
     db.commit()
