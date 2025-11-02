@@ -92,8 +92,31 @@ const adminApi = {
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
   },
+
+  // Bulk import courses
+  bulkImportCourses(accessToken, coursesData) {
+    return api.post('/auth/admin/courses/bulk-import', coursesData, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+  },
+
+  // Batch assign teacher to courses
+  batchAssignTeacher(accessToken, courseIds, teacherId) {
+    return api.post('/auth/admin/courses/batch-assign-teacher', 
+      { course_ids: courseIds, teacher_id: teacherId },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
+  // Export users
+  exportUsers(accessToken, userType = null, userIds = []) {
+    return api.post('/auth/admin/users/export',
+      { user_type: userType, user_ids: userIds },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
   
-  // Import courses from CSV
+  // Import courses from CSV (old endpoint - keep for compatibility)
   importCourses(accessToken, formData) {
     return api.post('/teacher/courses/import', formData, {
       headers: {

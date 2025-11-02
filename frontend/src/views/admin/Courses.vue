@@ -9,6 +9,10 @@
 
       <template #extra>
         <a-space>
+          <a-button type="primary" @click="showBatchAssignModal" :disabled="selectedRowKeys.length === 0">
+            <template #icon><UserAddOutlined /></template>
+            分配教师
+          </a-button>
           <a-button type="primary" @click="showImportModal">
             <template #icon><UploadOutlined /></template>
             批量导入
@@ -218,6 +222,36 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- Batch Assign Teacher Modal -->
+    <a-modal
+      v-model:open="batchAssignModalVisible"
+      title="批量分配教师 / Batch Assign Teacher"
+      @ok="handleBatchAssignTeacher"
+      @cancel="resetBatchAssignForm"
+      :confirm-loading="batchAssignLoading"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="选择教师 / Select Teacher">
+          <a-select 
+            v-model:value="selectedTeacherId" 
+            placeholder="Select teacher"
+            style="width: 100%"
+            show-search
+            :filter-option="filterTeacherOption"
+          >
+            <a-select-option v-for="teacher in teachers" :key="teacher.teacher_id" :value="teacher.teacher_id">
+              {{ teacher.username }} (ID: {{ teacher.teacher_id }})
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-alert 
+          type="info" 
+          :message="`将为 ${selectedRowKeys.length} 门课程分配教师`"
+          show-icon
+        />
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -234,6 +268,7 @@ import {
   EditOutlined,
   DeleteOutlined,
   InboxOutlined,
+  UserAddOutlined,
 } from '@ant-design/icons-vue'
 
 const authStore = useAuthStore()
@@ -275,6 +310,12 @@ const editForm = reactive({
 const importModalVisible = ref(false)
 const importLoading = ref(false)
 const importFileList = ref([])
+
+// Batch Assign Modal
+const batchAssignModalVisible = ref(false)
+const batchAssignLoading = ref(false)
+const selectedTeacherId = ref(null)
+const teachers = ref([])
 
 // Row selection
 const rowSelection = {
@@ -450,11 +491,45 @@ const handleImportCourses = async () => {
 
   importLoading.value = true
   try {
-    const formData = new FormData()
-    formData.append('file', importFileList.value[0].originFileObj)
+    const file = importFileList.value[0].originFileObj
+    const text = await file.text()
+    const lines = text.split('\n').filter(line => line.trim())
+    
+    if (lines.length < 2) {
+      message.error('CSV 文件为空或格式不正确')
+      return
+    }
+    
+    // Parse CSV
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
+    const coursesData = []
+    
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''))
+      const course = {
+        course_name: values[headers.indexOf('course_name')] || values[0],
+        course_credit: parseFloat(values[headers.indexOf('course_credit')] || values[1]) || 3,
+        course_type: values[headers.indexOf('course_type')] || values[2] || 'elective',
+        course_location: values[headers.indexOf('course_location')] || values[3] || 'TBD',
+        course_capacity: parseInt(values[headers.indexOf('course_capacity')] || values[4]) || 30,
+        course_time_begin: parseInt(values[headers.indexOf('course_time_begin')] || values[5]) || 800,
+        course_time_end: parseInt(values[headers.indexOf('course_time_end')] || values[6]) || 950,
+        course_tags: values[headers.indexOf('course_tags')] ? values[headers.indexOf('course_tags')].split(';').filter(t => t) : [],
+        course_notes: values[headers.indexOf('course_notes')] || '',
+        course_cost: parseFloat(values[headers.indexOf('course_cost')] || 0) || 0,
+      }
+      coursesData.push(course)
+    }
 
-    await adminApi.importCourses(authStore.accessToken, formData)
-    message.success('课程导入成功')
+    const result = await adminApi.bulkImportCourses(authStore.accessToken, coursesData)
+    
+    if (result.error_count > 0) {
+      message.warning(`导入完成: ${result.imported_count} 成功, ${result.error_count} 失败`)
+      console.log('Import errors:', result.errors)
+    } else {
+      message.success(`成功导入 ${result.imported_count} 门课程`)
+    }
+    
     resetImportForm()
     loadCourses()
   } catch (error) {
@@ -510,6 +585,62 @@ const exportCourses = () => {
   link.click()
 
   message.success(`导出 ${selectedCourses.length} 门课程成功`)
+}
+
+const showBatchAssignModal = async () => {
+  // Load teachers list
+  try {
+    const response = await adminApi.listUsers(authStore.accessToken, 'teacher', 1, 1000)
+    teachers.value = response.users || []
+    batchAssignModalVisible.value = true
+  } catch (error) {
+    message.error('加载教师列表失败: ' + (error.response?.data?.detail || error.message))
+  }
+}
+
+const resetBatchAssignForm = () => {
+  selectedTeacherId.value = null
+  batchAssignModalVisible.value = false
+}
+
+const filterTeacherOption = (input, option) => {
+  return option.children[0].children.toLowerCase().includes(input.toLowerCase())
+}
+
+const handleBatchAssignTeacher = async () => {
+  if (!selectedTeacherId.value) {
+    message.error('请选择教师')
+    return
+  }
+
+  batchAssignLoading.value = true
+  try {
+    const result = await adminApi.batchAssignTeacher(
+      authStore.accessToken, 
+      selectedRowKeys.value, 
+      selectedTeacherId.value
+    )
+    
+    if (result.error_count > 0) {
+      message.warning(`分配完成: ${result.updated_count} 成功, ${result.error_count} 失败`)
+    } else {
+      message.success(`成功为 ${result.updated_count} 门课程分配教师`)
+    }
+    
+    resetBatchAssignForm()
+    selectedRowKeys.value = []
+    loadCourses()
+  } catch (error) {
+    const errorDetail = error.response?.data?.detail || error.message
+    if (error.response?.status === 401 || errorDetail?.includes('Invalid token')) {
+      message.error('登录已过期，请重新登录')
+      authStore.logout()
+    } else {
+      message.error('分配教师失败: ' + errorDetail)
+    }
+  } finally {
+    batchAssignLoading.value = false
+  }
 }
 
 // Lifecycle

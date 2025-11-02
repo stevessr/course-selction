@@ -1388,6 +1388,94 @@ async def delete_course_admin(
         raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
 
 
+@app.post("/admin/courses/bulk-import")
+async def bulk_import_courses_admin(
+    courses: List[dict],
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Bulk import courses (admin only)"""
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            headers = {"Internal-Token": internal_token}
+            response = await client.post(
+                f"{data_node_url}/bulk/import/courses",
+                json=courses,
+                headers=headers
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail=f"Failed to import courses: {response.text}")
+            
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
+
+
+@app.post("/admin/courses/batch-assign-teacher")
+async def batch_assign_teacher_admin(
+    data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Batch assign teacher to courses (admin only)"""
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    course_ids = data.get("course_ids", [])
+    teacher_id = data.get("teacher_id")
+    
+    if not course_ids or not teacher_id:
+        raise HTTPException(status_code=400, detail="course_ids and teacher_id are required")
+    
+    # Verify teacher exists
+    teacher = db.query(Teacher).filter(Teacher.teacher_id == teacher_id).first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    
+    updated = []
+    errors = []
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            headers = {"Internal-Token": internal_token}
+            
+            for course_id in course_ids:
+                try:
+                    response = await client.post(
+                        f"{data_node_url}/update/course",
+                        params={"course_id": course_id},
+                        json={"course_teacher_id": teacher_id},
+                        headers=headers
+                    )
+                    
+                    if response.status_code == 200:
+                        updated.append(course_id)
+                    else:
+                        errors.append({
+                            "course_id": course_id,
+                            "error": response.text
+                        })
+                except Exception as e:
+                    errors.append({
+                        "course_id": course_id,
+                        "error": str(e)
+                    })
+        
+        return {
+            "success": True,
+            "updated_count": len(updated),
+            "error_count": len(errors),
+            "updated": updated,
+            "errors": errors
+        }
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
+
+
 # Health check
 @app.get("/health")
 async def health_check():

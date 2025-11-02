@@ -13,6 +13,10 @@
             <template #icon><PlusOutlined /></template>
             添加用户
           </a-button>
+          <a-button @click="exportUsers">
+            <template #icon><DownloadOutlined /></template>
+            导出用户
+          </a-button>
           <a-button @click="showImportModal">
             <template #icon><UploadOutlined /></template>
             批量导入
@@ -583,6 +587,7 @@ import {
   DeleteOutlined,
   InboxOutlined,
   TagOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons-vue'
 
 const authStore = useAuthStore()
@@ -1002,6 +1007,42 @@ const formatDate = (dateString) => {
   if (!dateString) return '-'
   const date = new Date(dateString)
   return date.toLocaleString('zh-CN')
+}
+
+const exportUsers = () => {
+  const usersToExport = users.value
+
+  if (usersToExport.length === 0) {
+    message.warning('没有可导出的用户')
+    return
+  }
+
+  // Create CSV content
+  const headers = ['User ID', 'Username', 'User Type', 'Is Active', 'Has 2FA', 'Tags', 'Created At']
+  const rows = usersToExport.map(u => [
+    u.user_id,
+    u.username,
+    u.user_type,
+    u.is_active ? 'Yes' : 'No',
+    u.has_2fa ? 'Yes' : 'No',
+    (u.student_tags || []).join(';'),
+    u.created_at || '',
+  ])
+
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+  ].join('\n')
+
+  // Download file
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  const userTypeFilter = activeTab.value === 'all' ? 'all' : activeTab.value
+  link.download = `users_${userTypeFilter}_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+
+  message.success(`导出 ${usersToExport.length} 个用户成功`)
 }
 
 // Lifecycle

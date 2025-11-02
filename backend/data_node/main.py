@@ -175,6 +175,66 @@ async def delete_course(
     return {"success": True, "message": "Course deleted successfully"}
 
 
+@app.post("/bulk/import/courses")
+async def bulk_import_courses(
+    courses_data: List[CourseCreate],
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_internal_token_header)
+):
+    """Bulk import courses"""
+    imported = []
+    errors = []
+    
+    for idx, course_data in enumerate(courses_data):
+        try:
+            # Check if course with same name already exists
+            existing = db.query(Course).filter(Course.course_name == course_data.course_name).first()
+            if existing:
+                errors.append({
+                    "index": idx,
+                    "course_name": course_data.course_name,
+                    "error": "Course with this name already exists"
+                })
+                continue
+            
+            # Create new course
+            db_course = Course(
+                course_name=course_data.course_name,
+                course_credit=course_data.course_credit,
+                course_type=course_data.course_type,
+                course_location=course_data.course_location,
+                course_capacity=course_data.course_capacity,
+                course_selected=0,
+                course_time_begin=course_data.course_time_begin,
+                course_time_end=course_data.course_time_end,
+                course_teacher_id=course_data.course_teacher_id if hasattr(course_data, 'course_teacher_id') else None,
+                course_tags=course_data.course_tags if hasattr(course_data, 'course_tags') else [],
+                course_notes=course_data.course_notes if hasattr(course_data, 'course_notes') else None,
+                course_cost=course_data.course_cost if hasattr(course_data, 'course_cost') else 0,
+            )
+            db.add(db_course)
+            db.commit()
+            db.refresh(db_course)
+            imported.append({
+                "course_id": db_course.course_id,
+                "course_name": db_course.course_name
+            })
+        except Exception as e:
+            errors.append({
+                "index": idx,
+                "course_name": course_data.course_name if hasattr(course_data, 'course_name') else f"Course {idx}",
+                "error": str(e)
+            })
+    
+    return {
+        "success": True,
+        "imported_count": len(imported),
+        "error_count": len(errors),
+        "imported": imported,
+        "errors": errors
+    }
+
+
 @app.get("/get/course", response_model=CourseResponse)
 async def get_course(
     course_id: int,
