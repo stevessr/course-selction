@@ -34,6 +34,8 @@
                     mode="tags"
                     placeholder="输入标签 / Enter tags"
                     style="width: 300px;"
+                    :options="availableUserTags.map(tag => ({ label: tag, value: tag }))"
+                    @search="handleUserTagSearch"
                   />
                   
                   <a-button type="primary" @click="addUserTags" :loading="userTagsLoading">
@@ -124,6 +126,8 @@
                     mode="tags"
                     placeholder="输入标签 / Enter tags"
                     style="width: 300px;"
+                    :options="availableCourseTags.map(tag => ({ label: tag, value: tag }))"
+                    @search="handleCourseTagSearch"
                   />
                   
                   <a-button type="primary" @click="addCourseTags" :loading="courseTagsLoading">
@@ -286,6 +290,10 @@ const userTagsTableLoading = ref(false)
 const courseTagsTableLoading = ref(false)
 const batchOperationLoading = ref(false)
 
+// Available tags for autocomplete
+const availableUserTags = ref([])
+const availableCourseTags = ref([])
+
 // User Tags
 const users = ref([])
 const selectedUserIds = ref([])
@@ -362,6 +370,20 @@ const courseTagsStats = computed(() => {
 })
 
 // Methods
+const loadAvailableTags = async () => {
+  try {
+    // Load user tags
+    const userTagsResponse = await adminApi.getAvailableTags(authStore.accessToken, 'user')
+    availableUserTags.value = (userTagsResponse.tags || []).map(t => t.tag_name)
+    
+    // Load course tags
+    const courseTagsResponse = await adminApi.getAvailableTags(authStore.accessToken, 'course')
+    availableCourseTags.value = (courseTagsResponse.tags || []).map(t => t.tag_name)
+  } catch (error) {
+    console.error('Failed to load available tags:', error)
+  }
+}
+
 const loadUsers = async () => {
   try {
     const response = await adminApi.listUsers(authStore.accessToken, 'student', 1, 1000)
@@ -434,6 +456,7 @@ const addUserTags = async () => {
     message.success(`成功为 ${selectedUserIds.value.length} 个用户添加标签`)
     selectedUserIds.value = []
     newUserTags.value = []
+    await loadAvailableTags()
     await loadUsers()
     await loadUsersWithTags()
   } catch (error) {
@@ -455,6 +478,7 @@ const removeUserTag = async (tag) => {
     }
     
     message.success(`已从 ${affectedUsers.length} 个用户中移除标签 "${tag}"`)
+    await loadAvailableTags()
     await loadUsers()
     await loadUsersWithTags()
   } catch (error) {
@@ -484,6 +508,7 @@ const addCourseTags = async () => {
     message.success(`成功为 ${selectedCourseIds.value.length} 门课程添加标签`)
     selectedCourseIds.value = []
     newCourseTags.value = []
+    await loadAvailableTags()
     await loadCourses()
     await loadCoursesWithTags()
   } catch (error) {
@@ -508,6 +533,7 @@ const removeCourseTag = async (tag) => {
     }
     
     message.success(`已从 ${affectedCourses.length} 门课程中移除标签 "${tag}"`)
+    await loadAvailableTags()
     await loadCourses()
     await loadCoursesWithTags()
   } catch (error) {
@@ -563,6 +589,7 @@ const handleBatchReplaceUserTag = async () => {
     batchReplaceUserTagModalVisible.value = false
     batchReplaceUserTagOld.value = null
     batchReplaceUserTagNew.value = ''
+    await loadAvailableTags()
     await loadUsers()
     await loadUsersWithTags()
   } catch (error) {
@@ -622,6 +649,7 @@ const handleBatchReplaceCourseTag = async () => {
     batchReplaceCourseTagModalVisible.value = false
     batchReplaceCourseTagOld.value = null
     batchReplaceCourseTagNew.value = ''
+    await loadAvailableTags()
     await loadCourses()
     await loadCoursesWithTags()
   } catch (error) {
@@ -661,8 +689,19 @@ const handleCourseSearch = (value) => {
   // Implement search if needed
 }
 
+const handleUserTagSearch = (value) => {
+  // This is called when typing in the user tags select
+  // The autocomplete will filter automatically based on available options
+}
+
+const handleCourseTagSearch = (value) => {
+  // This is called when typing in the course tags select
+  // The autocomplete will filter automatically based on available options
+}
+
 // Lifecycle
 onMounted(() => {
+  loadAvailableTags()
   loadUsers()
   loadUsersWithTags()
   loadCourses()
