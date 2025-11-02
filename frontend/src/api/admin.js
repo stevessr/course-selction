@@ -74,16 +74,6 @@ const adminApi = {
 
   // Update student tags
   updateStudentTags(accessToken, studentId, studentTags) {
-    // Send student_tags as query parameters for the backend to properly parse as List[str]
-    const params = new URLSearchParams()
-    params.append('student_id', studentId)
-    // Add each tag as a separate query parameter
-    if (Array.isArray(studentTags)) {
-      studentTags.forEach(tag => {
-        params.append('student_tags', tag)
-      })
-    }
-    
     return api.post('/auth/admin/student/update-tags',
       { student_id: studentId, student_tags: studentTags },
       { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -92,7 +82,7 @@ const adminApi = {
 
   // Get available tags for autocomplete
   getAvailableTags(accessToken, tagType = null) {
-    return api.get('/data/tags/available', {
+    return api.get('/auth/admin/tags/available', {
       params: tagType ? { tag_type: tagType } : {},
       headers: { Authorization: `Bearer ${accessToken}` }
     })

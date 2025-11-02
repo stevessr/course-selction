@@ -1393,6 +1393,42 @@ async def update_student_tags_endpoint(
     return {"success": True, "message": "Student tags updated successfully"}
 
 
+@app.get("/admin/tags/available")
+async def get_available_tags_admin(
+    tag_type: Optional[str] = None,
+    current_admin: Admin = Depends(get_current_admin)
+):
+    """Get available tags for autocomplete (admin only)"""
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            headers = {"Internal-Token": internal_token}
+            params = {}
+            if tag_type:
+                params["tag_type"] = tag_type
+            
+            response = await client.get(
+                f"{data_node_url}/tags/available",
+                params=params,
+                headers=headers
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"Failed to get available tags: {response.text}"
+                )
+            
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error contacting data node: {str(e)}"
+        )
+
+
 # Admin course management endpoints
 @app.get("/admin/courses")
 async def list_all_courses(
