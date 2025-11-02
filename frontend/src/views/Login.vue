@@ -69,7 +69,7 @@ const goToLogin = (role) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: cornflowerblue;
 }
 
 .login-card {
