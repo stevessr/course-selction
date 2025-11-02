@@ -1102,6 +1102,7 @@ async def add_user_endpoint(
                 username=username,
                 password_hash=get_password_hash(password),
                 totp_secret=generate_totp_secret(),
+                has_2fa=False,  # Student needs to complete 2FA setup
                 is_active=True,
             )
             db.add(new_student)
