@@ -97,7 +97,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { SafetyOutlined, CopyOutlined } from '@ant-design/icons-vue'
@@ -144,11 +144,19 @@ onMounted(async () => {
     totpUri.value = data.totp_uri
 
     // Generate QR code
+    // Note: the canvas is inside a v-if block that depends on totpSecret,
+    // so we must wait for the DOM to update before drawing to it.
+    await nextTick()
     if (qrCanvas.value && totpUri.value) {
-      await QRCode.toCanvas(qrCanvas.value, totpUri.value, {
-        width: 250,
-        margin: 2,
-      })
+      try {
+        await QRCode.toCanvas(qrCanvas.value, totpUri.value, {
+          width: 250,
+          margin: 2,
+        })
+      } catch (e) {
+        console.error('Failed to render QR code:', e)
+        message.error('二维码生成失败，请稍后重试 / Failed to render QR code')
+      }
     }
   } catch (error) {
     message.error(error.message || '生成密钥失败 / Failed to generate secret')
