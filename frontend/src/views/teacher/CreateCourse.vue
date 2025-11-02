@@ -82,7 +82,7 @@ const form = ref({
 const handleSubmit = async () => {
   loading.value = true
   try {
-    await teacherApi.createCourse(authStore.accessToken, form.value)
+  await teacherApi.createCourse(authStore.accessToken?.value || authStore.accessToken, form.value)
     message.success('Course created successfully')
     router.push('/teacher/courses')
   } catch (error) {

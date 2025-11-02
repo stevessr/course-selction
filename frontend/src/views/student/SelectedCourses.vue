@@ -71,7 +71,7 @@ const columns = [
 const loadCourses = async () => {
   loading.value = true
   try {
-    const response = await studentApi.getSelectedCourses(authStore.accessToken)
+  const response = await studentApi.getSelectedCourses(authStore.accessToken?.value || authStore.accessToken)
     courses.value = response.courses
   } catch (error) {
     message.error(error.message || 'Failed to load selected courses')
@@ -83,7 +83,7 @@ const loadCourses = async () => {
 const deselectCourse = async (course) => {
   droppingCourse.value = course.course_id
   try {
-    const response = await studentApi.deselectCourse(authStore.accessToken, course.course_id)
+  const response = await studentApi.deselectCourse(authStore.accessToken?.value || authStore.accessToken, course.course_id)
     message.success(response.message || 'Course drop submitted to queue')
     setTimeout(() => loadCourses(), 2000)
   } catch (error) {

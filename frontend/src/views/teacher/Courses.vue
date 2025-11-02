@@ -43,7 +43,7 @@ const columns = [
 const loadCourses = async () => {
   loading.value = true
   try {
-    const response = await teacherApi.getCourses(authStore.accessToken)
+  const response = await teacherApi.getCourses(authStore.accessToken?.value || authStore.accessToken)
     courses.value = response.courses || []
   } catch (error) {
     message.error(error.message || 'Failed to load courses')
@@ -58,7 +58,7 @@ const editCourse = (course) => {
 
 const deleteCourse = async (course) => {
   try {
-    await teacherApi.deleteCourse(authStore.accessToken, course.course_id)
+  await teacherApi.deleteCourse(authStore.accessToken?.value || authStore.accessToken, course.course_id)
     message.success('Course deleted successfully')
     loadCourses()
   } catch (error) {

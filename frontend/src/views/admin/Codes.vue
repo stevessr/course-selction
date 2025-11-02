@@ -58,7 +58,7 @@ const generateCode = async () => {
   loading.value = true
   try {
     const response = await authApi.generateRegistrationCode(
-      authStore.accessToken,
+      authStore.accessToken?.value || authStore.accessToken,
       form.value.userType,
       form.value.expiresDays
     )

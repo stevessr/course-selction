@@ -62,7 +62,7 @@ const getDayName = (day) => dayNames[day]
 const loadSchedule = async () => {
   loading.value = true
   try {
-    const response = await studentApi.getSchedule(authStore.accessToken)
+  const response = await studentApi.getSchedule(authStore.accessToken?.value || authStore.accessToken)
     schedule.value = response.schedule
   } catch (error) {
     message.error(error.message || 'Failed to load schedule')

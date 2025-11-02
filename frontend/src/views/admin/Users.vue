@@ -745,7 +745,7 @@ const loadUsers = async () => {
   try {
     const userType = getUserTypeFromTab()
     const response = await adminApi.listUsers(
-      authStore.accessToken,
+      authStore.accessToken?.value || authStore.accessToken,
       userType,
       pagination.current,
       pagination.pageSize,
@@ -802,7 +802,7 @@ const handleAddUser = async () => {
 
   addUserLoading.value = true
   try {
-    await adminApi.addUser(authStore.accessToken, newUser)
+  await adminApi.addUser(authStore.accessToken?.value || authStore.accessToken, newUser)
     message.success('用户添加成功')
     resetAddUserForm()
     loadUsers()
@@ -845,7 +845,7 @@ const handleImportUsers = async () => {
 
   importLoading.value = true
   try {
-    const response = await adminApi.importUsers(authStore.accessToken, formData)
+  const response = await adminApi.importUsers(authStore.accessToken?.value || authStore.accessToken, formData)
     message.success(`成功导入 ${response.success_count} 个用户`)
     if (response.failed_count > 0) {
       message.warning(`${response.failed_count} 个用户导入失败`)
@@ -874,7 +874,7 @@ const viewUserDetails = (user) => {
 
 const reset2FA = async (user) => {
   try {
-    await adminApi.resetUser2FA(authStore.accessToken, user.username)
+  await adminApi.resetUser2FA(authStore.accessToken?.value || authStore.accessToken, user.username)
     message.success('2FA重置成功')
     loadUsers()
   } catch (error) {
@@ -892,7 +892,7 @@ const reset2FA = async (user) => {
 
 const toggleUserStatus = async (user) => {
   try {
-    await adminApi.toggleUserStatus(authStore.accessToken, user.user_id, !user.is_active)
+  await adminApi.toggleUserStatus(authStore.accessToken?.value || authStore.accessToken, user.user_id, !user.is_active)
     message.success(`用户已${user.is_active ? '停用' : '启用'}`)
     loadUsers()
   } catch (error) {
@@ -910,7 +910,7 @@ const toggleUserStatus = async (user) => {
 
 const deleteUser = async (user) => {
   try {
-    await adminApi.deleteUser(authStore.accessToken, user.user_id || user.admin_id, user.user_type)
+  await adminApi.deleteUser(authStore.accessToken?.value || authStore.accessToken, user.user_id || user.admin_id, user.user_type)
     message.success('用户删除成功')
     loadUsers()
   } catch (error) {
@@ -948,7 +948,7 @@ const handleUpdateTags = async () => {
   tagsLoading.value = true
   try {
     await adminApi.updateStudentTags(
-      authStore.accessToken,
+      authStore.accessToken?.value || authStore.accessToken,
       selectedUser.value.user_id,
       tagsForm.tags
     )

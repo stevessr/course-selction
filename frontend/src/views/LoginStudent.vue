@@ -162,7 +162,7 @@ const resetting = ref(false)
 
 // Check if we have a valid refresh token on mount
 onMounted(async () => {
-  if (authStore.refreshToken) {
+  if (authStore.refreshToken?.value) {
     // We have a refresh token, check 2FA status
     const statusResult = await authStore.check2FAStatus()
     
@@ -242,7 +242,12 @@ const handleLogin = async () => {
 const handleTwoFactor = async () => {
   loading.value = true
   try {
-    await authStore.verify2FA(twoFactorForm.value.totpCode)
+    // Sanitize to 6 digits
+    const code = (twoFactorForm.value.totpCode || '').replace(/\D/g, '').slice(0, 6)
+    if (code.length !== 6) {
+      throw new Error('2FA code must be 6 digits')
+    }
+    await authStore.verify2FA(code)
     message.success('Login successful')
     router.push('/student/courses')
   } catch (error) {

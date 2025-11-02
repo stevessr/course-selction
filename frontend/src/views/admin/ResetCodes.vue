@@ -235,7 +235,7 @@ const loadCodes = async () => {
         page: pagination.current,
         page_size: pagination.pageSize,
       },
-      headers: { Authorization: `Bearer ${authStore.accessToken}` }
+      headers: { Authorization: `Bearer ${authStore.accessToken?.value || authStore.accessToken}` }
     })
     codes.value = response.codes || []
     pagination.total = response.total || 0
@@ -278,7 +278,7 @@ const handleGenerateCode = async () => {
       username: generateForm.username,
       expires_days: generateForm.expires_days,
     }, {
-      headers: { Authorization: `Bearer ${authStore.accessToken}` }
+      headers: { Authorization: `Bearer ${authStore.accessToken?.value || authStore.accessToken}` }
     })
 
     generatedCode.value = response.code

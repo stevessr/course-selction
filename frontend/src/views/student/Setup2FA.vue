@@ -119,7 +119,7 @@ const verifyForm = ref({
 
 // Generate 2FA secret on mount
 onMounted(async () => {
-  if (!authStore.refreshToken) {
+  if (!authStore.refreshToken?.value) {
     message.error('请先登录 / Please login first')
     router.push('/login/student')
     return
@@ -130,7 +130,7 @@ onMounted(async () => {
     const response = await fetch('/api/auth/setup/2fa/v1', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${authStore.refreshToken}`,
+        'Authorization': `Bearer ${authStore.refreshToken.value}`,
       },
     })
 
@@ -174,15 +174,20 @@ const copySecret = () => {
 const handleVerify = async () => {
   loading.value = true
   try {
+    // Sanitize and validate TOTP code (digits only, length 6)
+    const sanitized = (verifyForm.value.totpCode || '').replace(/\D/g, '').slice(0, 6)
+    if (sanitized.length !== 6) {
+      throw new Error('验证码必须是 6 位数字 / Code must be 6 digits!')
+    }
     const response = await fetch('/api/auth/setup/2fa/v2', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${authStore.refreshToken}`,
+        'Authorization': `Bearer ${authStore.refreshToken.value}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         totp_secret: totpSecret.value,
-        totp_code: verifyForm.value.totpCode,
+        totp_code: sanitized,
       }),
     })
 

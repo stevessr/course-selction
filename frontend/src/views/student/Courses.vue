@@ -120,7 +120,7 @@ const loadCourses = async () => {
   loading.value = true
   try {
     const response = await studentApi.getAvailableCourses(
-      authStore.accessToken,
+      authStore.accessToken?.value || authStore.accessToken,
       courseType.value || null,
       pagination.value.current,
       pagination.value.pageSize
@@ -143,7 +143,7 @@ const handleTableChange = (pag) => {
 const selectCourse = async (course) => {
   selectingCourse.value = course.course_id
   try {
-    const response = await studentApi.selectCourse(authStore.accessToken, course.course_id)
+  const response = await studentApi.selectCourse(authStore.accessToken?.value || authStore.accessToken, course.course_id)
     message.success(response.message || 'Course selection submitted to queue')
     if (response.task_id) {
       const position = response.position || 'Unknown'
@@ -159,7 +159,7 @@ const selectCourse = async (course) => {
 
 const showCourseDetail = async (course) => {
   try {
-    const detail = await studentApi.getCourseDetail(authStore.accessToken, course.course_id)
+  const detail = await studentApi.getCourseDetail(authStore.accessToken?.value || authStore.accessToken, course.course_id)
     selectedCourse.value = detail
     detailModalVisible.value = true
   } catch (error) {
