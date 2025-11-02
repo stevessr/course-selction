@@ -80,10 +80,28 @@
             </a-space>
           </a-card>
 
+          <!-- Filter Section -->
+          <div style="margin-bottom: 16px;">
+            <a-space>
+              <span>按标签筛选 / Filter by Tag:</span>
+              <a-select
+                v-model:value="userTagFilter"
+                placeholder="全部 / All"
+                style="width: 200px;"
+                allow-clear
+              >
+                <a-select-option :value="null">全部 / All</a-select-option>
+                <a-select-option v-for="tagStat in userTagsStats" :key="tagStat.tag" :value="tagStat.tag">
+                  {{ tagStat.tag }} ({{ tagStat.count }})
+                </a-select-option>
+              </a-select>
+            </a-space>
+          </div>
+
           <!-- Users with Tags Table -->
           <a-table
             :columns="userTagsColumns"
-            :data-source="usersWithTags"
+            :data-source="filteredUsersWithTags"
             :loading="userTagsTableLoading"
             :pagination="userTagsPagination"
             @change="handleUserTagsTableChange"
@@ -172,10 +190,36 @@
             </a-space>
           </a-card>
 
+          <!-- Filter and Search Section -->
+          <div style="margin-bottom: 16px;">
+            <a-space>
+              <span>按标签筛选 / Filter by Tag:</span>
+              <a-select
+                v-model:value="courseTagFilter"
+                placeholder="全部 / All"
+                style="width: 200px;"
+                allow-clear
+              >
+                <a-select-option :value="null">全部 / All</a-select-option>
+                <a-select-option v-for="tagStat in courseTagsStats" :key="tagStat.tag" :value="tagStat.tag">
+                  {{ tagStat.tag }} ({{ tagStat.count }})
+                </a-select-option>
+              </a-select>
+              
+              <span style="margin-left: 16px;">搜索课程 / Search Course:</span>
+              <a-input-search
+                v-model:value="courseSearchText"
+                placeholder="输入课程名称 / Enter course name"
+                style="width: 300px;"
+                allow-clear
+              />
+            </a-space>
+          </div>
+
           <!-- Courses with Tags Table -->
           <a-table
             :columns="courseTagsColumns"
-            :data-source="coursesWithTags"
+            :data-source="filteredCoursesWithTags"
             :loading="courseTagsTableLoading"
             :pagination="courseTagsPagination"
             @change="handleCourseTagsTableChange"
@@ -299,6 +343,7 @@ const users = ref([])
 const selectedUserIds = ref([])
 const newUserTags = ref([])
 const usersWithTags = ref([])
+const userTagFilter = ref(null) // Filter users by tag
 const userTagsPagination = reactive({
   current: 1,
   pageSize: 20,
@@ -310,6 +355,8 @@ const courses = ref([])
 const selectedCourseIds = ref([])
 const newCourseTags = ref([])
 const coursesWithTags = ref([])
+const courseTagFilter = ref(null) // Filter courses by tag
+const courseSearchText = ref('') // Search courses by name
 const courseTagsPagination = reactive({
   current: 1,
   pageSize: 20,
@@ -367,6 +414,38 @@ const courseTagsStats = computed(() => {
   return Array.from(tagMap.entries())
     .map(([tag, count]) => ({ tag, count }))
     .sort((a, b) => b.count - a.count)
+})
+
+// Filtered users with tags
+const filteredUsersWithTags = computed(() => {
+  if (!userTagFilter.value) {
+    return usersWithTags.value
+  }
+  return usersWithTags.value.filter(user => {
+    return (user.student_tags || []).includes(userTagFilter.value)
+  })
+})
+
+// Filtered courses with tags
+const filteredCoursesWithTags = computed(() => {
+  let filtered = coursesWithTags.value
+  
+  // Filter by tag
+  if (courseTagFilter.value) {
+    filtered = filtered.filter(course => {
+      return (course.course_tags || []).includes(courseTagFilter.value)
+    })
+  }
+  
+  // Filter by search text
+  if (courseSearchText.value) {
+    const searchLower = courseSearchText.value.toLowerCase()
+    filtered = filtered.filter(course => {
+      return course.course_name?.toLowerCase().includes(searchLower)
+    })
+  }
+  
+  return filtered
 })
 
 // Methods
