@@ -1000,13 +1000,35 @@ async def list_users(
         else:
             db_students = query_students.order_by(Student.created_at.desc()).all()
         
+        # Fetch student tags from data node
+        data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+        internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+        
         for student in db_students:
+            student_tags = []
+            try:
+                # Fetch student data from data node to get tags
+                async with httpx.AsyncClient() as client:
+                    headers = {"Internal-Token": internal_token}
+                    response = await client.get(
+                        f"{data_node_url}/get/student",
+                        params={"student_id": student.student_id},
+                        headers=headers
+                    )
+                    if response.status_code == 200:
+                        student_data = response.json()
+                        student_tags = student_data.get("student_tags", [])
+            except Exception as e:
+                # If we can't fetch tags, continue with empty list
+                pass
+            
             all_users_data.append({
                 "user_id": student.student_id,
                 "username": student.username,
                 "user_type": "student",
                 "is_active": student.is_active,
                 "totp_secret": student.totp_secret,
+                "student_tags": student_tags,
                 "created_at": student.created_at.isoformat() if student.created_at else None,
                 "updated_at": student.updated_at.isoformat() if student.updated_at else None,
             })
