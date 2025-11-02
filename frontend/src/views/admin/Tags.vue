@@ -393,11 +393,18 @@ const courseTagsColumns = [
 
 // Computed statistics
 const userTagsStats = computed(() => {
+  if (!usersWithTags.value || !Array.isArray(usersWithTags.value)) {
+    return []
+  }
   const tagMap = new Map()
   usersWithTags.value.forEach(user => {
-    (user.student_tags || []).forEach(tag => {
-      tagMap.set(tag, (tagMap.get(tag) || 0) + 1)
-    })
+    if (user && user.student_tags && Array.isArray(user.student_tags)) {
+      user.student_tags.forEach(tag => {
+        if (tag) {
+          tagMap.set(tag, (tagMap.get(tag) || 0) + 1)
+        }
+      })
+    }
   })
   return Array.from(tagMap.entries())
     .map(([tag, count]) => ({ tag, count }))
@@ -405,11 +412,18 @@ const userTagsStats = computed(() => {
 })
 
 const courseTagsStats = computed(() => {
+  if (!coursesWithTags.value || !Array.isArray(coursesWithTags.value)) {
+    return []
+  }
   const tagMap = new Map()
   coursesWithTags.value.forEach(course => {
-    (course.course_tags || []).forEach(tag => {
-      tagMap.set(tag, (tagMap.get(tag) || 0) + 1)
-    })
+    if (course && course.course_tags && Array.isArray(course.course_tags)) {
+      course.course_tags.forEach(tag => {
+        if (tag) {
+          tagMap.set(tag, (tagMap.get(tag) || 0) + 1)
+        }
+      })
+    }
   })
   return Array.from(tagMap.entries())
     .map(([tag, count]) => ({ tag, count }))
@@ -418,22 +432,28 @@ const courseTagsStats = computed(() => {
 
 // Filtered users with tags
 const filteredUsersWithTags = computed(() => {
+  if (!usersWithTags.value || !Array.isArray(usersWithTags.value)) {
+    return []
+  }
   if (!userTagFilter.value) {
     return usersWithTags.value
   }
   return usersWithTags.value.filter(user => {
-    return (user.student_tags || []).includes(userTagFilter.value)
+    return user && user.student_tags && Array.isArray(user.student_tags) && user.student_tags.includes(userTagFilter.value)
   })
 })
 
 // Filtered courses with tags
 const filteredCoursesWithTags = computed(() => {
+  if (!coursesWithTags.value || !Array.isArray(coursesWithTags.value)) {
+    return []
+  }
   let filtered = coursesWithTags.value
   
   // Filter by tag
   if (courseTagFilter.value) {
     filtered = filtered.filter(course => {
-      return (course.course_tags || []).includes(courseTagFilter.value)
+      return course && course.course_tags && Array.isArray(course.course_tags) && course.course_tags.includes(courseTagFilter.value)
     })
   }
   
@@ -441,7 +461,7 @@ const filteredCoursesWithTags = computed(() => {
   if (courseSearchText.value) {
     const searchLower = courseSearchText.value.toLowerCase()
     filtered = filtered.filter(course => {
-      return course.course_name?.toLowerCase().includes(searchLower)
+      return course && course.course_name && course.course_name.toLowerCase().includes(searchLower)
     })
   }
   
