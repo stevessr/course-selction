@@ -2,7 +2,7 @@
   <a-tooltip :title="isDark ? '切换到浅色模式 / Switch to Light Mode' : '切换到深色模式 / Switch to Dark Mode'" placement="left">
     <a-button
       type="text"
-      :icon="isDark ? h(SunOutlined) : h(MoonOutlined)"
+      :icon="isDark ? h(BulbOutlined) : h(BulbFilled)"
       @click="toggleTheme"
       class="theme-toggle-button"
       size="large"
@@ -12,7 +12,7 @@
 
 <script setup>
 import { h } from 'vue'
-import { SunOutlined, MoonOutlined } from '@ant-design/icons-vue'
+import { BulbOutlined, BulbFilled } from '@ant-design/icons-vue'
 import { useThemeStore } from '@/store/theme'
 
 const themeStore = useThemeStore()
