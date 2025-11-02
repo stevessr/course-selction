@@ -1238,15 +1238,37 @@ async def toggle_user_status_endpoint(
     current_admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Toggle user active status (admin only)"""
+    """Toggle user active status (admin only). Accepts optional user_type to avoid ID collisions."""
     user_id = data.get("user_id")
     is_active = data.get("is_active")
+    user_type = data.get("user_type")
     
     if user_id is None or is_active is None:
         raise HTTPException(status_code=400, detail="user_id and is_active required")
     
-    # Determine user type to query the correct table
-    # We'll try each table based on the ID
+    # If caller specifies user_type, use it directly to avoid cross-table ID collisions
+    if user_type == "student":
+        student = db.query(Student).filter(Student.student_id == user_id).first()
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+        student.is_active = is_active
+        db.commit()
+        return {"success": True, "message": f"Student {'activated' if is_active else 'deactivated'} successfully"}
+    elif user_type == "teacher":
+        teacher = db.query(Teacher).filter(Teacher.teacher_id == user_id).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Teacher not found")
+        teacher.is_active = is_active
+        db.commit()
+        return {"success": True, "message": f"Teacher {'activated' if is_active else 'deactivated'} successfully"}
+    elif user_type == "admin":
+        admin = db.query(Admin).filter(Admin.admin_id == user_id).first()
+        if not admin:
+            raise HTTPException(status_code=404, detail="Admin not found")
+        # Admin model may not have is_active; treat toggle as unsupported for admins
+        raise HTTPException(status_code=400, detail="Toggling admin status is not supported")
+    
+    # Fallback: detect by probing tables in order (may be ambiguous if IDs overlap)
     student = db.query(Student).filter(Student.student_id == user_id).first()
     if student:
         student.is_active = is_active
@@ -1261,9 +1283,8 @@ async def toggle_user_status_endpoint(
     
     admin = db.query(Admin).filter(Admin.admin_id == user_id).first()
     if admin:
-        admin.is_active = is_active
-        db.commit()
-        return {"success": True, "message": f"Admin {'activated' if is_active else 'deactivated'} successfully"}
+        # Admin model may not have is_active; return a clear error
+        raise HTTPException(status_code=400, detail="Toggling admin status is not supported")
     
     raise HTTPException(status_code=404, detail="User not found")
 

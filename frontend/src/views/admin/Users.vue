@@ -1040,7 +1040,12 @@ const reset2FA = async (user) => {
 
 const toggleUserStatus = async (user) => {
   try {
-  await adminApi.toggleUserStatus(authStore.accessToken?.value || authStore.accessToken, user.user_id, !user.is_active)
+    await adminApi.toggleUserStatus(
+      authStore.accessToken?.value || authStore.accessToken,
+      user.user_id,
+      !user.is_active,
+      user.user_type
+    )
     message.success(`用户已${user.is_active ? '停用' : '启用'}`)
     loadUsers()
   } catch (error) {
