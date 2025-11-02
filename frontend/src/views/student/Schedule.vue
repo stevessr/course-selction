@@ -34,7 +34,7 @@
                 </template>
               </a-list>
             </div>
-            <a-empty v-else description="No classes" :image="null" />
+            <a-empty v-else description="No classes" />
           </a-card>
         </a-col>
       </a-row>
