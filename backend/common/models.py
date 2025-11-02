@@ -4,8 +4,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timezone
 
 # Separate base classes for different service databases
-DataBase = declarative_base()  # For data_node: courses, students, teachers
-AuthBase = declarative_base()  # For auth_node: admins, tokens, codes
+DataBase = declarative_base()  # For data_node: courses, course-related student/teacher data
+AuthBase = declarative_base()  # For auth_node: authentication, admins, tokens, codes
 QueueBase = declarative_base()  # For queue_node: queue_tasks
 
 
@@ -18,54 +18,73 @@ class Course(DataBase):
     course_credit = Column(Integer, nullable=False)
     course_type = Column(String(50), nullable=False)
     course_teacher_id = Column(Integer, nullable=False)
-    
+
     # Legacy time fields for backward compatibility
     course_time_begin = Column(Integer, nullable=True)
     course_time_end = Column(Integer, nullable=True)
-    
+
     # New scheduling system: {"monday": [1,2,5], "wednesday": [3,4], ...}
     # Time slots: 1-4 (morning), 5-8 (afternoon), 9-11 (evening)
     course_schedule = Column(JSON, nullable=True)
-    
+
     course_location = Column(String(100), nullable=False)
     course_capacity = Column(Integer, nullable=False)
     course_selected = Column(Integer, default=0)
-    
+
     # New fields for enhanced course management
     course_tags = Column(JSON, default=list)  # Student must have matching tags
     course_notes = Column(String(500), default="")  # Additional information
     course_cost = Column(Integer, default=0)  # 0 for free courses
     is_active = Column(Boolean, default=True)
-    
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
-class Student(DataBase):
-    """Student model with authentication and 2FA"""
+class StudentCourseData(DataBase):
+    """Student course-related data (stored in course_data.db)"""
+    __tablename__ = "students"
+
+    student_id = Column(Integer, primary_key=True, autoincrement=True)
+    student_name = Column(String(100), nullable=False)
+    student_courses = Column(JSON, default=list)  # List of course IDs
+    student_tags = Column(JSON, default=list)  # Tags for course enrollment eligibility
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class TeacherCourseData(DataBase):
+    """Teacher course-related data (stored in course_data.db)"""
+    __tablename__ = "teachers"
+
+    teacher_id = Column(Integer, primary_key=True, autoincrement=True)
+    teacher_name = Column(String(100), nullable=False)
+    teacher_courses = Column(JSON, default=list)  # List of course IDs
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+# Authentication models (stored in auth_data.db)
+class Student(AuthBase):
+    """Student authentication model (stored in auth_data.db)"""
     __tablename__ = "students"
 
     student_id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(100), nullable=False, unique=True)
     password_hash = Column(String(255), nullable=False)
-    student_name = Column(String(100), nullable=False)
-    student_courses = Column(JSON, default=list)
-    student_tags = Column(JSON, default=list)  # Tags for course enrollment eligibility
     totp_secret = Column(String(32))  # For 2FA (students only)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
-class Teacher(DataBase):
-    """Teacher model with authentication (no 2FA)"""
+class Teacher(AuthBase):
+    """Teacher authentication model (stored in auth_data.db)"""
     __tablename__ = "teachers"
 
     teacher_id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(100), nullable=False, unique=True)
     password_hash = Column(String(255), nullable=False)
-    teacher_name = Column(String(100), nullable=False)
-    teacher_courses = Column(JSON, default=list)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

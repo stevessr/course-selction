@@ -11,3 +11,7 @@ qrcode>=7.4.2
 redis>=5.0.0
 httpx>=0.25.0
 python-dotenv>=1.0.0
+
+# Test and dev dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
