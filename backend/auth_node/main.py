@@ -716,6 +716,7 @@ async def get_user_info(
                 username=user.username,
                 user_type=get_user_type(user),
                 is_active=is_active(user),
+                has_2fa=has_2fa(user),
                 created_at=user.created_at
             )
     except Exception as e:

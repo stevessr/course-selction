@@ -1,6 +1,17 @@
 <template>
   <div class="settings-container">
     <a-card title="账户设置 / Account Settings">
+      <!-- 2FA Required Alert for Students -->
+      <a-alert
+        v-if="!twoFAStatus.has_2fa"
+        message="⚠️ 需要启用双因素认证 / 2FA Setup Required"
+        description="为了保护您的账户安全，学生必须启用双因素认证才能访问选课系统。请完成以下设置。 / For account security, students must enable 2FA before accessing the course selection system. Please complete the setup below."
+        type="warning"
+        show-icon
+        :closable="false"
+        style="margin-bottom: 20px"
+      />
+
       <a-tabs v-model:activeKey="activeTab">
         <!-- Password Change Tab -->
         <a-tab-pane key="password" tab="修改密码 / Change Password">
@@ -46,7 +57,7 @@
         </a-tab-pane>
 
         <!-- 2FA Management Tab -->
-        <a-tab-pane key="2fa" tab="双因素认证 / 2FA">
+        <a-tab-pane key="2fa" tab="双因素认证 / 2FA (必须)">
           <div v-if="twoFAStatus.has_2fa">
             <a-alert
               message="双因素认证已启用 / 2FA Enabled"
@@ -88,9 +99,9 @@
           
           <div v-else>
             <a-alert
-              message="双因素认证未启用 / 2FA Not Enabled"
-              description="建议启用双因素认证以增强账户安全"
-              type="warning"
+              message="⚠️ 双因素认证未启用 / 2FA Not Enabled (Required)"
+              description="作为学生用户，您必须启用双因素认证才能使用选课系统。这是强制性的安全要求。 / As a student, you must enable 2FA to use the course selection system. This is a mandatory security requirement."
+              type="error"
               show-icon
               style="margin-bottom: 20px"
             />
@@ -245,9 +256,14 @@ const handleVerify2FA = async () => {
   verify2FALoading.value = true
   try {
     await verify2FA({ totp_code: verify2FAForm.totp_code })
-    message.success('2FA已成功启用 / 2FA enabled successfully')
+    message.success('2FA已成功启用！您现在可以使用选课系统了 / 2FA enabled successfully! You can now access the course selection system')
     twoFAStatus.has_2fa = true
     cancelSetup2FA()
+    
+    // Redirect to courses page after a short delay
+    setTimeout(() => {
+      window.location.href = '/student/courses'
+    }, 2000)
   } catch (error) {
     message.error(error.response?.data?.detail || '验证码错误')
   } finally {
@@ -284,6 +300,11 @@ const load2FAStatus = async () => {
   try {
     const response = await get2FAStatus()
     twoFAStatus.has_2fa = response.has_2fa
+    
+    // Auto-switch to 2FA tab if not enabled (force students to set it up)
+    if (!twoFAStatus.has_2fa) {
+      activeTab.value = '2fa'
+    }
   } catch (error) {
     console.error('Failed to load 2FA status:', error)
   }
