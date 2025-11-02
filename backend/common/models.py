@@ -29,7 +29,8 @@ class Course(DataBase):
 
     course_location = Column(String(100), nullable=False)
     course_capacity = Column(Integer, nullable=False)
-    course_selected = Column(Integer, default=0)
+    course_selected = Column(JSON, default=list)  # List of student IDs who selected this course
+    course_selected_count = Column(Integer, default=0)  # For backward compatibility and quick count
 
     # New fields for enhanced course management
     course_tags = Column(JSON, default=list)  # Student must have matching tags
@@ -60,6 +61,18 @@ class TeacherCourseData(DataBase):
     teacher_id = Column(Integer, primary_key=True, autoincrement=True)
     teacher_name = Column(String(100), nullable=False)
     teacher_courses = Column(JSON, default=list)  # List of course IDs
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class AvailableTag(DataBase):
+    """Available tags for auto-completion"""
+    __tablename__ = "available_tags"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tag_name = Column(String(100), nullable=False, unique=True)
+    tag_type = Column(String(20), nullable=False)  # 'user' or 'course'
+    usage_count = Column(Integer, default=0)  # Track how many times this tag is used
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

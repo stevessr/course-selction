@@ -14,7 +14,7 @@ load_dotenv()
 load_dotenv(dotenv_path=Path(__file__).with_name('.env'), override=True)
 
 from backend.common import (
-    DataBase, Course, StudentCourseData, TeacherCourseData,
+    DataBase, Course, StudentCourseData, TeacherCourseData, AvailableTag,
     CourseCreate, CourseUpdate, CourseResponse,
     StudentCreate, StudentResponse,
     TeacherCreate, TeacherResponse,
@@ -454,8 +454,12 @@ async def select_course(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     
+    # Initialize course_selected as array if it's still an integer (migration support)
+    course_selected_list = course.course_selected if isinstance(course.course_selected, list) else []
+    course_selected_count = len(course_selected_list) if isinstance(course.course_selected, list) else course.course_selected
+    
     # Check if course is full
-    if course.course_selected >= course.course_capacity:
+    if course_selected_count >= course.course_capacity:
         raise HTTPException(status_code=400, detail="Course is full")
     
     # Check if student already selected this course
@@ -463,16 +467,30 @@ async def select_course(
     if selection.course_id in student_courses:
         raise HTTPException(status_code=400, detail="Student already selected this course")
     
+    # Check if student ID is already in course selected list
+    if selection.student_id in course_selected_list:
+        raise HTTPException(status_code=400, detail="Student already in course selection list")
+    
     # Add course to student
     student_courses.append(selection.course_id)
     student.student_courses = student_courses
     student.updated_at = datetime.now(timezone.utc)
     
-    # Increment course selection count
-    course.course_selected += 1
+    # Add student ID to course selected list
+    course_selected_list.append(selection.student_id)
+    course.course_selected = course_selected_list
+    course.course_selected_count = len(course_selected_list)
     course.updated_at = datetime.now(timezone.utc)
     
+    # Explicitly mark as modified for SQLAlchemy to detect JSON changes
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(student, "student_courses")
+    flag_modified(course, "course_selected")
+    
     db.commit()
+    db.refresh(student)
+    db.refresh(course)
+    
     return {"success": True, "message": "Course selected successfully"}
 
 
@@ -496,17 +514,140 @@ async def deselect_course(
     if selection.course_id not in student_courses:
         raise HTTPException(status_code=400, detail="Student has not selected this course")
     
+    # Initialize course_selected as array if it's still an integer (migration support)
+    course_selected_list = course.course_selected if isinstance(course.course_selected, list) else []
+    
     # Remove course from student
     student_courses.remove(selection.course_id)
     student.student_courses = student_courses
     student.updated_at = datetime.now(timezone.utc)
     
-    # Decrement course selection count
-    course.course_selected = max(0, course.course_selected - 1)
+    # Remove student ID from course selected list
+    if selection.student_id in course_selected_list:
+        course_selected_list.remove(selection.student_id)
+    course.course_selected = course_selected_list
+    course.course_selected_count = len(course_selected_list)
     course.updated_at = datetime.now(timezone.utc)
     
+    # Explicitly mark as modified for SQLAlchemy to detect JSON changes
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(student, "student_courses")
+    flag_modified(course, "course_selected")
+    
     db.commit()
+    db.refresh(student)
+    db.refresh(course)
+    
     return {"success": True, "message": "Course deselected successfully"}
+
+
+# Available tags endpoints
+@app.get("/tags/available")
+async def get_available_tags(
+    tag_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_internal_token_header)
+):
+    """Get list of available tags for auto-completion"""
+    query = db.query(AvailableTag)
+    if tag_type:
+        query = query.filter(AvailableTag.tag_type == tag_type)
+    tags = query.order_by(AvailableTag.usage_count.desc(), AvailableTag.tag_name).all()
+    return {
+        "tags": [
+            {
+                "tag_name": tag.tag_name,
+                "tag_type": tag.tag_type,
+                "usage_count": tag.usage_count
+            }
+            for tag in tags
+        ]
+    }
+
+
+@app.post("/tags/add")
+async def add_available_tag(
+    tag_name: str,
+    tag_type: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_internal_token_header)
+):
+    """Add or update an available tag"""
+    if tag_type not in ['user', 'course']:
+        raise HTTPException(status_code=400, detail="tag_type must be 'user' or 'course'")
+    
+    # Check if tag already exists
+    existing = db.query(AvailableTag).filter(
+        AvailableTag.tag_name == tag_name,
+        AvailableTag.tag_type == tag_type
+    ).first()
+    
+    if existing:
+        existing.usage_count += 1
+        existing.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        return {"success": True, "message": "Tag usage count incremented"}
+    
+    # Create new tag
+    new_tag = AvailableTag(
+        tag_name=tag_name,
+        tag_type=tag_type,
+        usage_count=1
+    )
+    db.add(new_tag)
+    db.commit()
+    return {"success": True, "message": "Tag added successfully"}
+
+
+@app.post("/tags/sync")
+async def sync_available_tags(
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_internal_token_header)
+):
+    """Sync available tags from existing courses and students"""
+    # Get all unique tags from courses
+    courses = db.query(Course).all()
+    course_tags = set()
+    for course in courses:
+        if course.course_tags:
+            course_tags.update(course.course_tags)
+    
+    # Get all unique tags from students
+    students = db.query(StudentCourseData).all()
+    student_tags = set()
+    for student in students:
+        if student.student_tags:
+            student_tags.update(student.student_tags)
+    
+    # Add or update course tags
+    for tag_name in course_tags:
+        existing = db.query(AvailableTag).filter(
+            AvailableTag.tag_name == tag_name,
+            AvailableTag.tag_type == 'course'
+        ).first()
+        
+        if not existing:
+            new_tag = AvailableTag(tag_name=tag_name, tag_type='course', usage_count=1)
+            db.add(new_tag)
+    
+    # Add or update user tags
+    for tag_name in student_tags:
+        existing = db.query(AvailableTag).filter(
+            AvailableTag.tag_name == tag_name,
+            AvailableTag.tag_type == 'user'
+        ).first()
+        
+        if not existing:
+            new_tag = AvailableTag(tag_name=tag_name, tag_type='user', usage_count=1)
+            db.add(new_tag)
+    
+    db.commit()
+    return {
+        "success": True,
+        "message": "Tags synced successfully",
+        "course_tags_count": len(course_tags),
+        "user_tags_count": len(student_tags)
+    }
 
 
 # Health check
