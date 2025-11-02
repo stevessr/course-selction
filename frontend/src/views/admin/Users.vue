@@ -639,13 +639,6 @@ const handleUpdateTags = async () => {
     tagsLoading.value = false
   }
 }
-      message.error('登录已过期，请重新登录');
-      authStore.logout();
-    } else {
-      message.error('删除用户失败: ' + errorDetail)
-    }
-  }
-}
 
 // Utility functions
 const getUserTypeColor = (type) => {
