@@ -144,77 +144,83 @@ async def register_v1(
         # For now, allow registration without code for testing
         pass
     
-    # Check if user already exists in the appropriate table
-    existing_user = await get_user_by_username(db, user_data.username)
+    # Check if user already exists in the auth database
+    existing_user = await get_user_by_username(db, user_data.username, user_data.user_type)
     if existing_user:
         raise HTTPException(status_code=400, detail="Username already exists")
-    
-    # Check if user already exists in the appropriate table via data node
-    existing_user = await get_user_by_username(db, user_data.username)
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username already exists")
-    
+
     # Generate 2FA secret only for students (not for teachers/admins)
     totp_secret = generate_totp_secret() if user_data.user_type == "student" else None
-    
-    # Create user in data node with authentication details via new API endpoints
-    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
-    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
-    
-    import httpx
-    async with httpx.AsyncClient() as client:
-        headers = {"Internal-Token": f"Bearer {internal_token}"}
-        
-        user_id = None
-        if user_data.user_type == "student":
-            # Generate 2FA secret only for students (not for teachers/admins)
-            totp_secret = generate_totp_secret() if user_data.user_type == "student" else None
-            
-            # Create password hash
-            password_hash = get_password_hash(user_data.password)
-            
-            # Call the data node to create the student with auth details
+
+    # Create password hash
+    password_hash = get_password_hash(user_data.password)
+
+    # Create user in auth database
+    user_id = None
+    if user_data.user_type == "student":
+        # Create student auth record
+        new_student = Student(
+            username=user_data.username,
+            password_hash=password_hash,
+            totp_secret=totp_secret,
+            is_active=True
+        )
+        db.add(new_student)
+        db.commit()
+        db.refresh(new_student)
+        user_id = new_student.student_id
+
+        # Also create student course data record in data node
+        data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+        internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+
+        import httpx
+        async with httpx.AsyncClient() as client:
+            headers = {"Internal-Token": internal_token}
             student_payload = {
-                "username": user_data.username,
-                "password_hash": password_hash,
                 "student_name": user_data.username,  # Set to username initially
-                "totp_secret": totp_secret,
-                "is_active": True,
-                "student_courses": [],
                 "student_tags": []
             }
-            
-            response = await client.post(f"{data_node_url}/add/student-with-auth", json=student_payload, headers=headers)
+            response = await client.post(f"{data_node_url}/add/student", json=student_payload, headers=headers)
             if response.status_code != 201:
-                raise HTTPException(status_code=500, detail=f"Failed to create student in data node: {response.text}")
-            
-            student_response = response.json()
-            user_id = student_response.get("student_id")
-            
-        elif user_data.user_type == "teacher":
-            # Create password hash
-            password_hash = get_password_hash(user_data.password)
-            
-            # Call the data node to create the teacher with auth details
+                # Rollback auth record if course data creation fails
+                db.delete(new_student)
+                db.commit()
+                raise HTTPException(status_code=500, detail=f"Failed to create student course data: {response.text}")
+
+    elif user_data.user_type == "teacher":
+        # Create teacher auth record
+        new_teacher = Teacher(
+            username=user_data.username,
+            password_hash=password_hash,
+            is_active=True
+        )
+        db.add(new_teacher)
+        db.commit()
+        db.refresh(new_teacher)
+        user_id = new_teacher.teacher_id
+
+        # Also create teacher course data record in data node
+        data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+        internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+
+        import httpx
+        async with httpx.AsyncClient() as client:
+            headers = {"Internal-Token": internal_token}
             teacher_payload = {
-                "username": user_data.username,
-                "password_hash": password_hash,
-                "teacher_name": user_data.username,  # Set to username initially
-                "is_active": True,
-                "teacher_courses": []
+                "teacher_name": user_data.username  # Set to username initially
             }
-            
-            response = await client.post(f"{data_node_url}/add/teacher-with-auth", json=teacher_payload, headers=headers)
+            response = await client.post(f"{data_node_url}/add/teacher", json=teacher_payload, headers=headers)
             if response.status_code != 201:
-                raise HTTPException(status_code=500, detail=f"Failed to create teacher in data node: {response.text}")
-            
-            teacher_response = response.json()
-            user_id = teacher_response.get("teacher_id")
-        else:
-            raise HTTPException(status_code=400, detail="Invalid user type")
-        
-        if not user_id:
-            raise HTTPException(status_code=500, detail="Failed to create user in data node")
+                # Rollback auth record if course data creation fails
+                db.delete(new_teacher)
+                db.commit()
+                raise HTTPException(status_code=500, detail=f"Failed to create teacher course data: {response.text}")
+    else:
+        raise HTTPException(status_code=400, detail="Invalid user type")
+
+    if not user_id:
+        raise HTTPException(status_code=500, detail="Failed to create user")
     
     # Mark registration code as used
     if user_data.registration_code:
@@ -920,28 +926,74 @@ async def add_user_endpoint(
         if existing_student or existing_teacher:
             raise HTTPException(status_code=400, detail="User already exists")
         
-        # Create user in the appropriate table
+        # Create user in the appropriate auth table and also provision course data in data-node
         if user_type == "student":
-            new_user = Student(
+            # Create student in auth DB
+            new_student = Student(
                 username=username,
                 password_hash=get_password_hash(password),
-                student_name=username,  # Set to username initially
+                totp_secret=generate_totp_secret(),
                 is_active=True,
-                student_courses=[],
-                student_tags=[]
             )
+            db.add(new_student)
+            db.commit()
+            db.refresh(new_student)
+
+            # Create corresponding student record in data-node
+            data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+            internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+
+            student_payload = {
+                "student_name": username,
+                "student_tags": []
+            }
+            headers = {"Internal-Token": internal_token}
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(f"{data_node_url}/add/student", json=student_payload, headers=headers)
+                if response.status_code != status.HTTP_201_CREATED:
+                    # Rollback auth record if course data creation fails
+                    db.delete(new_student)
+                    db.commit()
+                    raise HTTPException(status_code=500, detail=f"Failed to create student course data: {response.text}")
+            except httpx.HTTPError as e:
+                db.delete(new_student)
+                db.commit()
+                raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
+
         elif user_type == "teacher":
-            new_user = Teacher(
+            # Create teacher in auth DB
+            new_teacher = Teacher(
                 username=username,
                 password_hash=get_password_hash(password),
-                teacher_name=username,  # Set to username initially
                 is_active=True,
-                teacher_courses=[]
             )
+            db.add(new_teacher)
+            db.commit()
+            db.refresh(new_teacher)
+
+            # Create corresponding teacher record in data-node
+            data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+            internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+
+            teacher_payload = {
+                "teacher_name": username,
+            }
+            headers = {"Internal-Token": internal_token}
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(f"{data_node_url}/add/teacher", json=teacher_payload, headers=headers)
+                if response.status_code != status.HTTP_201_CREATED:
+                    # Rollback auth record if course data creation fails
+                    db.delete(new_teacher)
+                    db.commit()
+                    raise HTTPException(status_code=500, detail=f"Failed to create teacher course data: {response.text}")
+            except httpx.HTTPError as e:
+                db.delete(new_teacher)
+                db.commit()
+                raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
         else:
             raise HTTPException(status_code=400, detail="Invalid user type")
-        
-        db.add(new_user)
     
     db.commit()
     

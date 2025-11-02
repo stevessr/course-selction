@@ -13,18 +13,21 @@ import json
 from pathlib import Path
 
 from backend.common.database import create_db_engine, create_session_factory, get_db_session
-from backend.common.models import Base, Course, Student, Teacher, Admin, RefreshToken, RegistrationCode, ResetCode
+from backend.common.models import (
+    Course, StudentCourseData, TeacherCourseData,  # Course data models
+    Student, Teacher, Admin, RefreshToken, RegistrationCode, ResetCode  # Auth models
+)
 
 
 # Available databases
 DATABASES = {
     'data': {
         'path': './course_data.db',
-        'models': [Course, Student, Teacher]
+        'models': [Course, StudentCourseData, TeacherCourseData]
     },
     'auth': {
         'path': './auth_data.db',
-        'models': [Admin, RefreshToken, RegistrationCode, ResetCode]
+        'models': [Student, Teacher, Admin, RefreshToken, RegistrationCode, ResetCode]
     },
     'queue': {
         'path': './queue_data.db',
