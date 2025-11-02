@@ -70,6 +70,29 @@ const adminApi = {
 
   // Course Management (Admin access)
   
+  // List all courses
+  listCourses(accessToken, page = 1, pageSize = 20, search = '', courseType = null) {
+    return api.get('/auth/admin/courses', {
+      params: { page, page_size: pageSize, search, course_type: courseType },
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+  },
+
+  // Update course
+  updateCourse(accessToken, courseData) {
+    return api.post('/auth/admin/course/update', courseData, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+  },
+
+  // Delete course
+  deleteCourse(accessToken, courseId) {
+    return api.post('/auth/admin/course/delete', 
+      { course_id: courseId },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+  
   // Import courses from CSV
   importCourses(accessToken, formData) {
     return api.post('/teacher/courses/import', formData, {

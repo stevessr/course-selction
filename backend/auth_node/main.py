@@ -1272,6 +1272,102 @@ async def update_student_tags_endpoint(
     return {"success": True, "message": "Student tags updated successfully"}
 
 
+# Admin course management endpoints
+@app.get("/admin/courses")
+async def list_all_courses(
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = None,
+    course_type: Optional[str] = None,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """List all courses (admin only)"""
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            params = {"page": page, "page_size": page_size}
+            if search:
+                params["search"] = search
+            if course_type:
+                params["course_type"] = course_type
+                
+            headers = {"Internal-Token": internal_token}
+            response = await client.get(f"{data_node_url}/get/courses", params=params, headers=headers)
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail=f"Failed to fetch courses: {response.text}")
+            
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
+
+
+@app.post("/admin/course/update")
+async def update_course_admin(
+    data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Update course (admin only)"""
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    course_id = data.get("course_id")
+    if not course_id:
+        raise HTTPException(status_code=400, detail="course_id is required")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            headers = {"Internal-Token": internal_token}
+            response = await client.post(
+                f"{data_node_url}/update/course",
+                params={"course_id": course_id},
+                json=data,
+                headers=headers
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail=f"Failed to update course: {response.text}")
+            
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
+
+
+@app.post("/admin/course/delete")
+async def delete_course_admin(
+    data: dict,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Delete course (admin only)"""
+    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+    
+    course_id = data.get("course_id")
+    if not course_id:
+        raise HTTPException(status_code=400, detail="course_id is required")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            headers = {"Internal-Token": internal_token}
+            response = await client.post(
+                f"{data_node_url}/delete/course",
+                params={"course_id": course_id},
+                headers=headers
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail=f"Failed to delete course: {response.text}")
+            
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
+
+
 # Health check
 @app.get("/health")
 async def health_check():
