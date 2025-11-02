@@ -13,6 +13,7 @@ from .models import (
     RefreshToken,
     RegistrationCode,
     ResetCode,
+    SystemSettings,
     QueueTask,
 )
 from .schemas import (
@@ -112,6 +113,7 @@ __all__ = [
     "RefreshToken",
     "RegistrationCode",
     "ResetCode",
+    "SystemSettings",
     "QueueTask",
     # Schemas
     "CourseCreate",

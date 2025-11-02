@@ -19,9 +19,13 @@ class Course(DataBase):
     course_type = Column(String(50), nullable=False)
     course_teacher_id = Column(Integer, nullable=False)
 
-    # Legacy time fields for backward compatibility
+    # Course period enum: 1-13 (representing class periods)
+    course_time_start = Column(Integer, nullable=True)  # Start period (1-13)
+    course_time_end = Column(Integer, nullable=True)  # End period (1-13)
+
+    # Legacy fields for backward compatibility
     course_time_begin = Column(Integer, nullable=True)
-    course_time_end = Column(Integer, nullable=True)
+    course_time_end_legacy = Column(Integer, nullable=True)
 
     # New scheduling system: {"monday": [1,2,5], "wednesday": [3,4], ...}
     # Time slots: 1-4 (morning), 5-8 (afternoon), 9-11 (evening)
@@ -85,7 +89,8 @@ class Student(AuthBase):
     student_id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(100), nullable=False, unique=True)
     password_hash = Column(String(255), nullable=False)
-    totp_secret = Column(String(32))  # For 2FA (students only)
+    totp_secret = Column(String(32))  # For 2FA (required for students)
+    has_2fa = Column(Boolean, default=False)  # Track if student has enabled 2FA
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -98,6 +103,8 @@ class Teacher(AuthBase):
     teacher_id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(100), nullable=False, unique=True)
     password_hash = Column(String(255), nullable=False)
+    totp_secret = Column(String(32))  # For 2FA (optional for teachers)
+    has_2fa = Column(Boolean, default=False)  # Track if teacher has enabled 2FA
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -152,6 +159,16 @@ class ResetCode(AuthBase):
     created_by = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime, nullable=False)
+
+
+class SystemSettings(AuthBase):
+    """System-wide settings for registration control"""
+    __tablename__ = "system_settings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    student_registration_enabled = Column(Boolean, default=True)
+    teacher_registration_enabled = Column(Boolean, default=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 
