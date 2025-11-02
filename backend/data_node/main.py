@@ -241,7 +241,8 @@ async def add_student(
 @app.post("/update/student", response_model=StudentResponse)
 async def update_student(
     student_id: int,
-    student_name: str,
+    student_name: Optional[str] = None,
+    student_tags: Optional[List[str]] = None,
     db: Session = Depends(get_db),
     _: None = Depends(verify_internal_token_header)
 ):
@@ -250,7 +251,11 @@ async def update_student(
     if not db_student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    db_student.student_name = student_name
+    if student_name is not None:
+        db_student.student_name = student_name
+    if student_tags is not None:
+        db_student.student_tags = student_tags
+    
     db_student.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(db_student)

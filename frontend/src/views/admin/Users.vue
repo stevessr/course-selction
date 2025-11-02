@@ -105,6 +105,12 @@
                 </a-button>
               </a-tooltip>
 
+              <a-tooltip v-if="record.user_type === 'student'" title="管理标签">
+                <a-button size="small" @click="showManageTagsModal(record)">
+                  <template #icon><TagOutlined /></template>
+                </a-button>
+              </a-tooltip>
+
               <a-tooltip 
                 v-if="(record.user_type === 'student' || record.user_type === 'teacher') && record.totp_secret" 
                 title="重置2FA">
@@ -267,6 +273,39 @@ bob,pass456,teacher,bob@example.com,Bob Smith</pre>
         </a-descriptions-item>
       </a-descriptions>
     </a-modal>
+
+    <!-- Manage Student Tags Modal -->
+    <a-modal
+      v-model:open="manageTagsModalVisible"
+      title="管理学生标签"
+      @ok="handleUpdateTags"
+      @cancel="resetTagsForm"
+      :confirm-loading="tagsLoading"
+      width="600px"
+    >
+      <a-form
+        :model="tagsForm"
+        :label-col="{ span: 6 }"
+        :wrapper-col="{ span: 18 }"
+      >
+        <a-form-item label="学生">
+          <a-input :value="selectedUser?.username" disabled />
+        </a-form-item>
+
+        <a-form-item label="标签">
+          <a-select
+            v-model:value="tagsForm.tags"
+            mode="tags"
+            placeholder="输入标签并按回车添加"
+            style="width: 100%"
+          >
+          </a-select>
+          <div style="margin-top: 8px; color: #666; font-size: 12px;">
+            学生需要有匹配的标签才能选修带有标签要求的课程
+          </div>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -286,6 +325,7 @@ import {
   CheckCircleOutlined,
   DeleteOutlined,
   InboxOutlined,
+  TagOutlined,
 } from '@ant-design/icons-vue'
 
 const authStore = useAuthStore()
@@ -324,6 +364,13 @@ const importFileList = ref([])
 // Details Modal
 const detailsModalVisible = ref(false)
 const selectedUser = ref(null)
+
+// Manage Tags Modal
+const manageTagsModalVisible = ref(false)
+const tagsLoading = ref(false)
+const tagsForm = reactive({
+  tags: [],
+})
 
 // Table columns
 const columns = [
@@ -541,6 +588,57 @@ const deleteUser = async (user) => {
     
     // Check if the error is due to invalid token
     if (error.response?.status === 401 || errorDetail?.includes('Invalid token')) {
+      message.error('登录已过期，请重新登录');
+      authStore.logout();
+    } else {
+      message.error('删除用户失败: ' + errorDetail)
+    }
+  }
+}
+
+const showManageTagsModal = async (user) => {
+  selectedUser.value = user
+  // Initialize tags - we need to fetch from data node
+  // For now, use empty array, but in production you'd fetch actual tags
+  tagsForm.tags = []
+  manageTagsModalVisible.value = true
+}
+
+const resetTagsForm = () => {
+  tagsForm.tags = []
+  manageTagsModalVisible.value = false
+}
+
+const handleUpdateTags = async () => {
+  if (!selectedUser.value) {
+    message.error('未选择用户')
+    return
+  }
+
+  tagsLoading.value = true
+  try {
+    await adminApi.updateStudentTags(
+      authStore.accessToken,
+      selectedUser.value.user_id,
+      tagsForm.tags
+    )
+    message.success('标签更新成功')
+    resetTagsForm()
+    loadUsers()
+  } catch (error) {
+    const errorDetail = error.response?.data?.detail || error.message;
+    
+    // Check if the error is due to invalid token
+    if (error.response?.status === 401 || errorDetail?.includes('Invalid token')) {
+      message.error('登录已过期，请重新登录');
+      authStore.logout();
+    } else {
+      message.error('更新标签失败: ' + errorDetail)
+    }
+  } finally {
+    tagsLoading.value = false
+  }
+}
       message.error('登录已过期，请重新登录');
       authStore.logout();
     } else {

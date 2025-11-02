@@ -60,6 +60,14 @@ const adminApi = {
     })
   },
 
+  // Update student tags
+  updateStudentTags(accessToken, studentId, studentTags) {
+    return api.post('/auth/admin/student/update-tags',
+      { student_id: studentId, student_tags: studentTags },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
   // Course Management (Admin access)
   
   // Import courses from CSV
