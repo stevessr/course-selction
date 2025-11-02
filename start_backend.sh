@@ -42,10 +42,30 @@ start_services() {
     load_root_env
     create_envs
 
-    # Prefer project virtualenv Python if available
-    PY_BIN="python"
+    # Select Python interpreter robustly
+    # Prefer project virtualenv only if it's healthy (can import encodings)
+    PY_BIN="python3"
+    if command -v python3 >/dev/null 2>&1; then
+        PY_BIN="python3"
+    elif command -v python >/dev/null 2>&1; then
+        PY_BIN="python"
+    fi
+
     if [ -x ".venv/bin/python" ]; then
-        PY_BIN=".venv/bin/python"
+        if ".venv/bin/python" - <<'EOF'
+import sys
+try:
+    import encodings  # minimal sanity check of venv
+except Exception as e:
+    sys.exit(1)
+else:
+    sys.exit(0)
+EOF
+        then
+            PY_BIN=".venv/bin/python"
+        else
+            echo_msg "${YELLOW}Warning: .venv appears broken (cannot import encodings). Falling back to system Python (${PY_BIN}).${NC}"
+        fi
     fi
 
     # Start services in background and record PIDs
