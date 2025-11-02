@@ -124,6 +124,8 @@ class RegistrationCode(AuthBase):
     created_by = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime, nullable=False)
+    # Tags that will be automatically assigned to users who register with this code
+    code_tags = Column(JSON, default=list)
 
 
 class ResetCode(AuthBase):

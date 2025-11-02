@@ -176,12 +176,20 @@ class AdminLogin(BaseModel):
 class RegistrationCodeCreate(BaseModel):
     user_type: str = Field(..., pattern="^(student|teacher)$")
     expires_days: int = Field(default=7, ge=1, le=365)
+    code_tags: Optional[List[str]] = Field(default_factory=list)
+    count: int = Field(default=1, ge=1, le=100)  # Number of codes to generate
 
 
 class RegistrationCodeResponse(BaseModel):
     code: str
     user_type: str
     expires_at: datetime
+    code_tags: Optional[List[str]] = None
+
+
+class BulkRegistrationCodeResponse(BaseModel):
+    codes: List[RegistrationCodeResponse]
+    count: int
 
 
 class ResetCodeCreate(BaseModel):

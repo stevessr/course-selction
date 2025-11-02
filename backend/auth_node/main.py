@@ -183,9 +183,14 @@ async def register_v1(
         import httpx
         async with httpx.AsyncClient() as client:
             headers = {"Internal-Token": internal_token}
+            # Apply tags from registration code if available
+            student_tags = []
+            if user_data.registration_code and reg_code:
+                student_tags = reg_code.code_tags or []
+            
             student_payload = {
                 "student_name": user_data.username,  # Set to username initially
-                "student_tags": []
+                "student_tags": student_tags
             }
             response = await client.post(f"{data_node_url}/add/student", json=student_payload, headers=headers)
             if response.status_code != 201:
@@ -776,30 +781,45 @@ async def add_admin(
     return {"success": True, "message": "Admin created successfully"}
 
 
-@app.post("/generate/registration-code", response_model=RegistrationCodeResponse)
+@app.post("/generate/registration-code")
 async def generate_registration_code_endpoint(
     code_data: RegistrationCodeCreate,
     current_admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Generate registration code (admin only)"""
-    code = generate_registration_code()
+    """Generate registration code(s) (admin only) - supports bulk generation"""
     expires_at = datetime.now(timezone.utc) + timedelta(days=code_data.expires_days)
     
-    db_code = RegistrationCode(
-        code=code,
-        user_type=code_data.user_type,
-        created_by=current_admin.admin_id,
-        expires_at=expires_at
-    )
-    db.add(db_code)
+    generated_codes = []
+    for _ in range(code_data.count):
+        code = generate_registration_code()
+        
+        db_code = RegistrationCode(
+            code=code,
+            user_type=code_data.user_type,
+            created_by=current_admin.admin_id,
+            expires_at=expires_at,
+            code_tags=code_data.code_tags or []
+        )
+        db.add(db_code)
+        
+        generated_codes.append({
+            "code": code,
+            "user_type": code_data.user_type,
+            "expires_at": expires_at,
+            "code_tags": code_data.code_tags
+        })
+    
     db.commit()
     
-    return {
-        "code": code,
-        "user_type": code_data.user_type,
-        "expires_at": expires_at
-    }
+    # Return single code format for backward compatibility if count=1
+    if code_data.count == 1:
+        return generated_codes[0]
+    else:
+        return {
+            "codes": generated_codes,
+            "count": len(generated_codes)
+        }
 
 
 @app.post("/generate/reset-code", response_model=ResetCodeResponse)
