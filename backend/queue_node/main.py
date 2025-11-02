@@ -8,6 +8,12 @@ import uuid
 from datetime import datetime, timezone
 import asyncio
 import httpx
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables: root .env first, then service-level .env overrides
+load_dotenv()
+load_dotenv(dotenv_path=Path(__file__).with_name('.env'), override=True)
 
 from backend.common import (
     QueueBase, QueueTask,

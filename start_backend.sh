@@ -8,6 +8,24 @@ NC='\033[0m' # No Color
 
 PIDS_FILE=".backend_pids"
 
+# Load env vars from project root .env if present
+load_root_env() {
+    if [ -f ".env" ]; then
+        echo_msg "${GREEN}Loading environment from ./.env${NC}"
+        # Export all variables defined by sourcing .env
+        set -a
+        # shellcheck disable=SC1091
+        . ./.env
+        set +a
+        # Optional: show a couple of important ones if set
+        if [ -n "${INTERNAL_TOKEN:-}" ]; then echo_msg "INTERNAL_TOKEN is set"; fi
+        if [ -n "${USE_SOCKETS:-}" ]; then echo_msg "USE_SOCKETS=${USE_SOCKETS}"; fi
+        if [ -n "${SOCKET_DIR:-}" ]; then echo_msg "SOCKET_DIR=${SOCKET_DIR}"; fi
+    else
+        echo_msg "${YELLOW}No .env found in project root; using defaults${NC}"
+    fi
+}
+
 echo_msg() { printf "%b\n" "$1"; }
 
 create_envs() {
@@ -21,6 +39,7 @@ create_envs() {
 
 start_services() {
     echo_msg "${GREEN}Starting Course Selection System Backend Services${NC}"
+    load_root_env
     create_envs
 
     # Prefer project virtualenv Python if available
