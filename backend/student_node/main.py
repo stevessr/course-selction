@@ -317,17 +317,39 @@ async def get_student_schedule(
                 headers={"Internal-Token": INTERNAL_TOKEN}
             )
             
-            # PLACEHOLDER: This is a simplified schedule mapping
-            # In production, implement proper time slot handling based on course_time_begin/end
-            # For now, map courses to days based on course_id modulo 7
-            day = ((course.get("course_id", 0) - 1) % 7) + 1
-            schedule[day].append({
+            # Get course weekdays - courses can span multiple days
+            course_weekdays = course.get("course_weekdays", [])
+            
+            # If no weekdays specified, try to parse from course_schedule
+            if not course_weekdays and course.get("course_schedule"):
+                # course_schedule format: {"monday": [1,2], "wednesday": [3,4], ...}
+                day_map = {
+                    "monday": 1, "tuesday": 2, "wednesday": 3, "thursday": 4,
+                    "friday": 5, "saturday": 6, "sunday": 7
+                }
+                course_schedule = course.get("course_schedule", {})
+                course_weekdays = [day_map[day] for day in course_schedule.keys() if day in day_map]
+            
+            # If still no weekdays, use legacy field or default to day 1 (Monday)
+            if not course_weekdays:
+                course_weekdays = [1]  # Default to Monday if no schedule info
+            
+            # Prepare course info
+            course_info = {
                 "course_id": course.get("course_id"),
                 "course_name": course.get("course_name"),
-                "course_time_begin": course.get("course_time_begin"),
+                "course_time_start": course.get("course_time_start"),
                 "course_time_end": course.get("course_time_end"),
-                "course_location": course.get("course_location")
-            })
+                "course_time_begin": course.get("course_time_begin"),  # Legacy field
+                "course_time_end_legacy": course.get("course_time_end_legacy"),  # Legacy field
+                "course_location": course.get("course_location"),
+                "course_schedule": course.get("course_schedule")
+            }
+            
+            # Add course to all its scheduled days
+            for day in course_weekdays:
+                if 1 <= day <= 7:  # Validate day is in valid range
+                    schedule[day].append(course_info)
         except:
             continue
     
