@@ -72,6 +72,7 @@ export default {
     available: 'Available',
     availableSeats: 'Available Seats',
     capacity: 'Capacity',
+    selected: 'Selected',
     credits: 'Credits',
     location: 'Location',
     time: 'Time',

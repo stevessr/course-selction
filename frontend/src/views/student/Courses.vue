@@ -116,7 +116,7 @@
               @click="selectCourse(record)"
               style="width: 100%"
             >
-              {{ hasTimeConflict(record) ? t('course.timeConflict') : t('common.select') }}
+              {{ getButtonText(record) }}
             </a-button>
             <a-button size="small" @click="showCourseDetail(record)" style="width: 100%">
               {{ t('common.details') }}
@@ -239,8 +239,23 @@ const hasTimeConflict = (course) => {
   return false
 }
 
+const isAlreadySelected = (course) => {
+  return selectedCourses.value.some(c => c.course_id === course.course_id)
+}
+
 const isDisabled = (course) => {
-  return course.course_left === 0 || hasTimeConflict(course)
+  // Disable if no seats, already selected, has time conflict, or another course is being selected
+  return course.course_left === 0 || isAlreadySelected(course) || hasTimeConflict(course) || selectingCourse.value !== null
+}
+
+const getButtonText = (course) => {
+  if (isAlreadySelected(course)) {
+    return t('course.selected') || '已选'
+  }
+  if (hasTimeConflict(course)) {
+    return t('course.timeConflict')
+  }
+  return t('common.select')
 }
 
 const clearFilters = () => {
@@ -260,6 +275,11 @@ const handleSearch = () => {
 
 const filterCourses = (coursesList) => {
   let filtered = coursesList
+
+  // Filter by course type
+  if (courseType.value) {
+    filtered = filtered.filter(c => c.course_type === courseType.value)
+  }
 
   // Search by name
   if (searchText.value) {
