@@ -11,6 +11,23 @@ from backend.common import (
 )
 
 
+def normalize_course_selected(course: Course) -> list:
+    """
+    Helper function to normalize course_selected field.
+    Handles migration from integer to list format.
+    
+    Args:
+        course: Course object
+        
+    Returns:
+        list: Normalized list of selected student IDs
+    """
+    if isinstance(course.course_selected, list):
+        return course.course_selected
+    # Legacy format: return empty list
+    return []
+
+
 def create_selection_router(get_db: Callable, verify_internal_token: Callable) -> APIRouter:
     """
     Factory function to create course selection router with injected dependencies.
@@ -39,9 +56,9 @@ def create_selection_router(get_db: Callable, verify_internal_token: Callable) -
         if not course:
             raise HTTPException(status_code=404, detail="Course not found")
         
-        # Initialize course_selected as array if it's still an integer (migration support)
-        course_selected_list = course.course_selected if isinstance(course.course_selected, list) else []
-        course_selected_count = len(course_selected_list) if isinstance(course.course_selected, list) else course.course_selected
+        # Normalize course_selected field
+        course_selected_list = normalize_course_selected(course)
+        course_selected_count = len(course_selected_list)
         
         # Check if course is full
         if course_selected_count >= course.course_capacity:
@@ -97,8 +114,8 @@ def create_selection_router(get_db: Callable, verify_internal_token: Callable) -
         if selection.course_id not in student_courses:
             raise HTTPException(status_code=400, detail="Student has not selected this course")
         
-        # Initialize course_selected as array if it's still an integer (migration support)
-        course_selected_list = course.course_selected if isinstance(course.course_selected, list) else []
+        # Normalize course_selected field
+        course_selected_list = normalize_course_selected(course)
         
         # Remove course from student
         student_courses.remove(selection.course_id)

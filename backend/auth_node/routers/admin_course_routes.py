@@ -7,6 +7,10 @@ import httpx
 
 from backend.common import Admin, Teacher
 
+# Configuration - loaded once at module level
+DATA_NODE_URL = os.getenv("DATA_NODE_URL", "http://localhost:8001")
+INTERNAL_TOKEN = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
+
 
 def create_admin_course_router(get_db: Callable, get_current_admin: Callable) -> APIRouter:
     """
@@ -20,10 +24,6 @@ def create_admin_course_router(get_db: Callable, get_current_admin: Callable) ->
         Configured APIRouter instance
     """
     router = APIRouter()
-    
-    # Get environment variables
-    DATA_NODE_URL = os.getenv("DATA_NODE_URL", "http://localhost:8001")
-    INTERNAL_TOKEN = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
 
     @router.get("/admin/courses")
     async def list_all_courses(

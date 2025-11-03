@@ -1,9 +1,9 @@
 """Student management routes for Data Node"""
 from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from typing import List, Optional, Callable
 from datetime import datetime, timezone
-from sqlalchemy.orm.attributes import flag_modified
 
 from backend.common import (
     Course, StudentCourseData, AvailableTag,
