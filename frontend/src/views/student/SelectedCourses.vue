@@ -62,14 +62,15 @@ const totalCredit = computed(() => {
   return courses.value.reduce((sum, course) => sum + (course.course_credit || 0), 0)
 })
 
-const columns = [
-  { title: computed(() => t('course.courseId')), dataIndex: 'course_id', key: 'course_id' },
-  { title: computed(() => t('course.courseName')), dataIndex: 'course_name', key: 'course_name' },
-  { title: computed(() => t('course.credits')), dataIndex: 'course_credit', key: 'course_credit' },
-  { title: computed(() => t('course.type')), dataIndex: 'course_type', key: 'course_type' },
-  { title: computed(() => t('course.location')), dataIndex: 'course_location', key: 'course_location' },
-  { title: computed(() => t('common.actions')), key: 'actions' },
-]
+// 使用 computed 生成整列定义，确保 title 为字符串而不是 ref，避免渲染为 [object Object]
+const columns = computed(() => [
+  { title: t('course.courseId'), dataIndex: 'course_id', key: 'course_id' },
+  { title: t('course.courseName'), dataIndex: 'course_name', key: 'course_name' },
+  { title: t('course.credits'), dataIndex: 'course_credit', key: 'course_credit' },
+  { title: t('course.type'), dataIndex: 'course_type', key: 'course_type' },
+  { title: t('course.location'), dataIndex: 'course_location', key: 'course_location' },
+  { title: t('common.actions'), key: 'actions' },
+])
 
 const loadCourses = async () => {
   loading.value = true

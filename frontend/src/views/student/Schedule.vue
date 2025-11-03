@@ -144,13 +144,13 @@ const selectedCourse = ref(null);
 
 const dayNames = [
   "",
-  computed(() => t("course.monday")),
-  computed(() => t("course.tuesday")),
-  computed(() => t("course.wednesday")),
-  computed(() => t("course.thursday")),
-  computed(() => t("course.friday")),
-  computed(() => t("course.saturday")),
-  computed(() => t("course.sunday")),
+  t("course.monday"),
+  t("course.tuesday"),
+  t("course.wednesday"),
+  t("course.thursday"),
+  t("course.friday"),
+  t("course.saturday"),
+  t("course.sunday"),
 ];
 
 const getDayName = (day) =>

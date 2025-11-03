@@ -298,7 +298,7 @@ async def register_v2(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -394,7 +394,7 @@ async def login_v2(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -444,7 +444,7 @@ async def check_2fa_status(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -473,7 +473,7 @@ async def login_no_2fa(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -547,7 +547,7 @@ async def setup_2fa_v1(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -588,7 +588,7 @@ async def setup_2fa_v2(
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
-        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -645,7 +645,7 @@ async def refresh_access_token(
         if not db_token:
             raise HTTPException(status_code=401, detail="Token revoked or not found")
         
-        user = await get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
+        user = get_user_by_id(db, payload.get("user_id"), payload.get("user_type"))
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -709,7 +709,7 @@ async def get_user_info(
             )
         else:
             # Look up regular user using auth_helpers
-            user = await get_user_by_id(db, user_id, user_type)
+            user = get_user_by_id(db, user_id, user_type)
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             
@@ -882,7 +882,7 @@ async def list_reset_codes(
     codes_data = []
     for code in db_codes:
         # Get the username for this code
-        user = await get_user_by_id(db, code.user_id, "student")
+        user = get_user_by_id(db, code.user_id, "student")
         username = user.username if user else "Unknown"
         
         codes_data.append({
@@ -920,7 +920,7 @@ async def reset_2fa(
         raise HTTPException(status_code=400, detail="Invalid or expired reset code")
     
     # Get user using the user_id from the reset code
-    user = await get_user_by_id(db, db_code.user_id, "student")  # Only students have reset codes
+    user = get_user_by_id(db, db_code.user_id, "student")  # Only students have reset codes
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -1835,7 +1835,7 @@ async def refresh_access_token(
             raise HTTPException(status_code=401, detail="Refresh token is invalid or expired")
         
         # Verify user still exists and is active
-        user = await get_user_by_id(db, user_id, user_type)
+        user = get_user_by_id(db, user_id, user_type)
         if not user or not is_active(user):
             raise HTTPException(status_code=401, detail="User not found or inactive")
         
@@ -1891,7 +1891,7 @@ async def change_password(
     user_type = current_user.get("user_type")
     
     # Get user from database
-    user = await get_user_by_id(db, user_id, user_type)
+    user = get_user_by_id(db, user_id, user_type)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -1917,7 +1917,7 @@ async def setup_2fa(
     user_type = current_user.get("user_type")
     
     # Get user from database
-    user = await get_user_by_id(db, user_id, user_type)
+    user = get_user_by_id(db, user_id, user_type)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -1967,7 +1967,7 @@ async def verify_2fa_setup(
     user_type = current_user.get("user_type")
     
     # Get user from database
-    user = await get_user_by_id(db, user_id, user_type)
+    user = get_user_by_id(db, user_id, user_type)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -1995,7 +1995,7 @@ async def disable_2fa(
     user_type = current_user.get("user_type")
     
     # Get user from database
-    user = await get_user_by_id(db, user_id, user_type)
+    user = get_user_by_id(db, user_id, user_type)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -2031,7 +2031,7 @@ async def get_2fa_status(
     user_type = current_user.get("user_type")
     
     # Get user from database
-    user = await get_user_by_id(db, user_id, user_type)
+    user = get_user_by_id(db, user_id, user_type)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
