@@ -120,8 +120,10 @@ export const disable2FA = (data) => {
   return api.post('/auth/user/2fa/disable', data)
 }
 
-export const get2FAStatus = () => {
-  return api.get('/auth/user/2fa/status')
+export const get2FAStatus = (accessToken) => {
+  return api.get('/auth/user/2fa/status', {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  })
 }
 
 export default authApi

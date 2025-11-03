@@ -179,8 +179,10 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { changePassword, setup2FA, verify2FA, disable2FA, get2FAStatus } from '@/api/auth'
+import { useAuthStore } from '@/store/auth'
 
 const { t } = useI18n()
+const authStore = useAuthStore()
 
 const activeTab = ref('password')
 const passwordLoading = ref(false)
@@ -301,7 +303,7 @@ const cancelSetup2FA = () => {
 
 const load2FAStatus = async () => {
   try {
-    const response = await get2FAStatus()
+    const response = await get2FAStatus(authStore.accessToken?.value || authStore.accessToken)
     twoFAStatus.has_2fa = response.has_2fa
     
     // Auto-switch to 2FA tab if not enabled (force students to set it up)

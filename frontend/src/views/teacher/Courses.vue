@@ -115,7 +115,6 @@ import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/store/auth'
 import teacherApi from '@/api/teacher'
-import adminApi from '@/api/admin'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -174,7 +173,7 @@ const viewStudents = async (course) => {
 const loadEnrolledStudents = async (courseId) => {
   studentsLoading.value = true
   try {
-    const response = await adminApi.getCourseStudents(
+    const response = await teacherApi.getCourseStudents(
       authStore.accessToken?.value || authStore.accessToken,
       courseId
     )
@@ -188,11 +187,10 @@ const loadEnrolledStudents = async (courseId) => {
 
 const loadAvailableStudents = async () => {
   try {
-    const response = await adminApi.getUsers(
-      authStore.accessToken?.value || authStore.accessToken,
-      'student'
+    const response = await teacherApi.getStudents(
+      authStore.accessToken?.value || authStore.accessToken
     )
-    availableStudents.value = response.users || []
+    availableStudents.value = response.users || response.students || []
   } catch (error) {
     message.error(error.message || t('message.loadUsersError'))
   }
@@ -211,7 +209,7 @@ const addStudentsToCourse = async () => {
 
   addingStudents.value = true
   try {
-    await adminApi.addStudentsToCourse(
+    await teacherApi.addStudentsToCourse(
       authStore.accessToken?.value || authStore.accessToken,
       selectedCourse.value.course_id,
       selectedStudentIds.value
@@ -256,7 +254,7 @@ const handleBulkAdd = async () => {
   bulkAddLoading.value = true
   try {
     const usernames = bulkAddText.value.split('\n').map(u => u.trim()).filter(u => u)
-    await adminApi.bulkAddStudentsToCourse(
+    await teacherApi.bulkAddStudentsToCourse(
       authStore.accessToken?.value || authStore.accessToken,
       selectedCourse.value.course_id,
       usernames
