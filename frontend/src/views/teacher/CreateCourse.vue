@@ -248,6 +248,7 @@ const handleImportCourses = async () => {
         course_name: parts[0],
         course_credit: parseFloat(parts[1]) || 3,
         course_type: parts[2] || 'elective',
+        course_teacher_id: authStore.user?.user_id || 0,
         course_location: parts[3] || 'TBD',
         course_capacity: parseInt(parts[4]) || 30,
         course_time_begin: parseInt(parts[5]) || 800,
