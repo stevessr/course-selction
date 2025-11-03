@@ -22,7 +22,7 @@
                 :data-source="schedule[day]"
               >
                 <template #renderItem="{ item }">
-                  <a-list-item>
+                  <a-list-item style="cursor: pointer" @click="showCourseDetail(item)">
                     <a-list-item-meta>
                       <template #title>{{ item.course_name }}</template>
                       <template #description>
@@ -41,6 +41,48 @@
     </a-card>
 
     <a-empty v-if="!loading && !schedule" description="No schedule data available" />
+
+    <a-modal
+      v-model:open="detailModalVisible"
+      title="Course Details"
+      :footer="null"
+      width="600px"
+    >
+      <a-descriptions v-if="selectedCourse" :column="1" bordered>
+        <a-descriptions-item label="Course Name">
+          {{ selectedCourse.course_name }}
+        </a-descriptions-item>
+        <a-descriptions-item label="Credits">
+          {{ selectedCourse.course_credit }}
+        </a-descriptions-item>
+        <a-descriptions-item label="Type">
+          {{ selectedCourse.course_type }}
+        </a-descriptions-item>
+        <a-descriptions-item label="Location">
+          {{ selectedCourse.course_location }}
+        </a-descriptions-item>
+        <a-descriptions-item label="Time">
+          {{ formatTime(selectedCourse.course_time_begin) }} - {{ formatTime(selectedCourse.course_time_end) }}
+        </a-descriptions-item>
+        <a-descriptions-item label="Day">
+          {{ getDayName(selectedCourse.course_day) }}
+        </a-descriptions-item>
+        <a-descriptions-item label="Capacity" v-if="selectedCourse.course_capacity">
+          {{ selectedCourse.course_selected }} / {{ selectedCourse.course_capacity }}
+        </a-descriptions-item>
+        <a-descriptions-item label="Available Seats" v-if="selectedCourse.course_left !== undefined">
+          <a-tag :color="selectedCourse.course_left > 10 ? 'green' : selectedCourse.course_left > 0 ? 'orange' : 'red'">
+            {{ selectedCourse.course_left }}
+          </a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item label="Tags" v-if="selectedCourse.course_tags && selectedCourse.course_tags.length > 0">
+          <a-tag v-for="tag in selectedCourse.course_tags" :key="tag" color="blue">{{ tag }}</a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item label="Notes" v-if="selectedCourse.course_notes">
+          {{ selectedCourse.course_notes }}
+        </a-descriptions-item>
+      </a-descriptions>
+    </a-modal>
   </div>
 </template>
 
@@ -54,6 +96,8 @@ const authStore = useAuthStore()
 
 const loading = ref(false)
 const schedule = ref(null)
+const detailModalVisible = ref(false)
+const selectedCourse = ref(null)
 
 const dayNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -76,6 +120,16 @@ const loadSchedule = async () => {
     message.error(error.message || 'Failed to load schedule')
   } finally {
     loading.value = false
+  }
+}
+
+const showCourseDetail = async (course) => {
+  try {
+    const detail = await studentApi.getCourseDetail(authStore.accessToken?.value || authStore.accessToken, course.course_id)
+    selectedCourse.value = detail
+    detailModalVisible.value = true
+  } catch (error) {
+    message.error(error.message || 'Failed to load course details')
   }
 }
 
