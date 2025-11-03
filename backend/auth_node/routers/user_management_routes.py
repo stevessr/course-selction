@@ -8,7 +8,6 @@ import httpx
 
 from backend.common import (
     Admin, Student, Teacher, AvailableTag,
-    AdminUserCreate,
     verify_password, get_password_hash,
 )
 from backend.common.auth_helpers import (
@@ -164,7 +163,7 @@ def create_user_management_router(get_db: Callable, verify_admin_or_internal: Ca
     @router.get("/admin/user")
     async def get_user_by_username_endpoint(
         username: str,
-        _: None = Depends(verify_internal_token_header),
+        _: None = Depends(verify_admin_or_internal),
         db: Session = Depends(get_db)
     ):
         """Get user by username (internal only)"""

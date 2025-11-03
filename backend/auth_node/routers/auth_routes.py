@@ -1,5 +1,5 @@
 """Authentication routes for Auth Node - registration, login, 2FA"""
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from sqlalchemy.orm import Session
 from typing import Callable
 from datetime import datetime, timedelta, timezone
@@ -8,7 +8,7 @@ import httpx
 
 from backend.common import (
     Student, Teacher, RefreshToken, RegistrationCode,
-    UserCreate, UserLogin,
+    UserCreate, UserLogin, User2FA,
     AccessTokenResponse, RefreshTokenResponse,
     verify_password, get_password_hash,
     create_access_token, create_refresh_token, decode_token, hash_token,
