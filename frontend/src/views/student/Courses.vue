@@ -1,14 +1,14 @@
 <template>
   <div>
-    <h1>Available Courses</h1>
+    <h1>{{ t('student.availableCourses') }}</h1>
     
     <a-card style="margin-bottom: 16px">
-      <h3>搜索和筛选 / Search and Filters</h3>
+      <h3>{{ t('student.searchAndFilters') }}</h3>
       <a-row :gutter="[16, 16]">
         <a-col :span="6">
           <a-input-search
             v-model:value="searchText"
-            placeholder="搜索课程名称 / Search course name"
+            :placeholder="t('course.searchCourseName')"
             @search="handleSearch"
             allow-clear
           />
@@ -16,20 +16,20 @@
         <a-col :span="6">
           <a-select
             v-model:value="courseType"
-            placeholder="课程类型 / Course Type"
+            :placeholder="t('course.courseType')"
             style="width: 100%"
             @change="handleSearch"
             allow-clear
           >
-            <a-select-option value="">All Types</a-select-option>
-            <a-select-option value="required">必修 / Required</a-select-option>
-            <a-select-option value="elective">选修 / Elective</a-select-option>
+            <a-select-option value="">{{ t('course.allTypes') }}</a-select-option>
+            <a-select-option value="required">{{ t('course.required') }}</a-select-option>
+            <a-select-option value="elective">{{ t('course.elective') }}</a-select-option>
           </a-select>
         </a-col>
         <a-col :span="6">
           <a-select
             v-model:value="filterTag"
-            placeholder="按标签筛选 / Filter by tag"
+            :placeholder="t('course.filterByTag')"
             style="width: 100%"
             @change="handleSearch"
             allow-clear
@@ -42,46 +42,46 @@
         <a-col :span="6">
           <a-select
             v-model:value="filterWeekday"
-            placeholder="按星期筛选 / Filter by weekday"
+            :placeholder="t('course.filterByWeekday')"
             style="width: 100%"
             @change="handleSearch"
             allow-clear
           >
-            <a-select-option value="monday">星期一 / Monday</a-select-option>
-            <a-select-option value="tuesday">星期二 / Tuesday</a-select-option>
-            <a-select-option value="wednesday">星期三 / Wednesday</a-select-option>
-            <a-select-option value="thursday">星期四 / Thursday</a-select-option>
-            <a-select-option value="friday">星期五 / Friday</a-select-option>
-            <a-select-option value="saturday">星期六 / Saturday</a-select-option>
-            <a-select-option value="sunday">星期日 / Sunday</a-select-option>
+            <a-select-option value="monday">{{ t('course.monday') }}</a-select-option>
+            <a-select-option value="tuesday">{{ t('course.tuesday') }}</a-select-option>
+            <a-select-option value="wednesday">{{ t('course.wednesday') }}</a-select-option>
+            <a-select-option value="thursday">{{ t('course.thursday') }}</a-select-option>
+            <a-select-option value="friday">{{ t('course.friday') }}</a-select-option>
+            <a-select-option value="saturday">{{ t('course.saturday') }}</a-select-option>
+            <a-select-option value="sunday">{{ t('course.sunday') }}</a-select-option>
           </a-select>
         </a-col>
       </a-row>
       <a-row :gutter="[16, 16]" style="margin-top: 16px">
         <a-col :span="12">
           <a-space>
-            <span>时间范围 / Time Range:</span>
+            <span>{{ t('course.timeRange') }}:</span>
             <a-time-picker
               v-model:value="filterTimeStart"
               format="HH:mm"
-              placeholder="开始时间 / Start time"
+              :placeholder="t('course.startTime')"
               @change="handleSearch"
             />
             <span>-</span>
             <a-time-picker
               v-model:value="filterTimeEnd"
               format="HH:mm"
-              placeholder="结束时间 / End time"
+              :placeholder="t('course.endTime')"
               @change="handleSearch"
             />
           </a-space>
         </a-col>
         <a-col :span="12">
           <a-button @click="clearFilters" style="float: right">
-            清除筛选 / Clear Filters
+            {{ t('common.clearFilters') }}
           </a-button>
           <a-button @click="loadCourses" :loading="loading" type="primary" style="float: right; margin-right: 8px">
-            刷新 / Refresh
+            {{ t('common.refresh') }}
           </a-button>
         </a-col>
       </a-row>
@@ -116,10 +116,10 @@
               @click="selectCourse(record)"
               style="width: 100%"
             >
-              {{ hasTimeConflict(record) ? 'Time Conflict' : 'Select' }}
+              {{ hasTimeConflict(record) ? t('course.timeConflict') : t('common.select') }}
             </a-button>
             <a-button size="small" @click="showCourseDetail(record)" style="width: 100%">
-              Details
+              {{ t('common.details') }}
             </a-button>
           </a-space>
         </template>
@@ -128,38 +128,38 @@
 
     <a-modal
       v-model:open="detailModalVisible"
-      title="Course Details"
+      :title="t('course.courseDetails')"
       :footer="null"
       width="600px"
     >
       <a-descriptions v-if="selectedCourse" :column="1" bordered>
-        <a-descriptions-item label="Course Name">
+        <a-descriptions-item :label="t('course.courseName')">
           {{ selectedCourse.course_name }}
         </a-descriptions-item>
-        <a-descriptions-item label="Credits">
+        <a-descriptions-item :label="t('course.credits')">
           {{ selectedCourse.course_credit }}
         </a-descriptions-item>
-        <a-descriptions-item label="Type">
+        <a-descriptions-item :label="t('course.type')">
           {{ selectedCourse.course_type }}
         </a-descriptions-item>
-        <a-descriptions-item label="Location">
+        <a-descriptions-item :label="t('course.location')">
           {{ selectedCourse.course_location }}
         </a-descriptions-item>
-        <a-descriptions-item label="Time">
+        <a-descriptions-item :label="t('course.time')">
           {{ formatTime(selectedCourse.course_time_begin) }} - {{ formatTime(selectedCourse.course_time_end) }}
         </a-descriptions-item>
-        <a-descriptions-item label="Capacity">
+        <a-descriptions-item :label="t('course.capacity')">
           {{ selectedCourse.course_selected }} / {{ selectedCourse.course_capacity }}
         </a-descriptions-item>
-        <a-descriptions-item label="Available Seats">
+        <a-descriptions-item :label="t('course.availableSeats')">
           <a-tag :color="selectedCourse.course_left > 10 ? 'green' : selectedCourse.course_left > 0 ? 'orange' : 'red'">
             {{ selectedCourse.course_left }}
           </a-tag>
         </a-descriptions-item>
-        <a-descriptions-item label="Tags" v-if="selectedCourse.course_tags && selectedCourse.course_tags.length > 0">
+        <a-descriptions-item :label="t('course.tags')" v-if="selectedCourse.course_tags && selectedCourse.course_tags.length > 0">
           <a-tag v-for="tag in selectedCourse.course_tags" :key="tag" color="blue">{{ tag }}</a-tag>
         </a-descriptions-item>
-        <a-descriptions-item label="Notes" v-if="selectedCourse.course_notes">
+        <a-descriptions-item :label="t('course.notes')" v-if="selectedCourse.course_notes">
           {{ selectedCourse.course_notes }}
         </a-descriptions-item>
       </a-descriptions>
@@ -170,10 +170,12 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { message } from 'ant-design-vue'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/store/auth'
 import studentApi from '@/api/student'
 import dayjs from 'dayjs'
 
+const { t } = useI18n()
 const authStore = useAuthStore()
 
 const loading = ref(false)
@@ -198,16 +200,16 @@ const pagination = ref({
   total: 0,
 })
 
-const columns = [
-  { title: 'Course ID', dataIndex: 'course_id', key: 'course_id' },
-  { title: 'Course Name', dataIndex: 'course_name', key: 'course_name' },
-  { title: 'Credits', dataIndex: 'course_credit', key: 'course_credit' },
-  { title: 'Type', dataIndex: 'course_type', key: 'course_type' },
-  { title: 'Location', dataIndex: 'course_location', key: 'course_location' },
-  { title: 'Time', key: 'course_time' },
-  { title: 'Available', dataIndex: 'course_left', key: 'course_left' },
-  { title: 'Actions', key: 'actions' },
-]
+const columns = computed(() => [
+  { title: t('course.courseId'), dataIndex: 'course_id', key: 'course_id' },
+  { title: t('course.courseName'), dataIndex: 'course_name', key: 'course_name' },
+  { title: t('course.credits'), dataIndex: 'course_credit', key: 'course_credit' },
+  { title: t('course.type'), dataIndex: 'course_type', key: 'course_type' },
+  { title: t('course.location'), dataIndex: 'course_location', key: 'course_location' },
+  { title: t('course.time'), key: 'course_time' },
+  { title: t('course.available'), dataIndex: 'course_left', key: 'course_left' },
+  { title: t('common.actions'), key: 'actions' },
+])
 
 const loadSelectedCourses = async () => {
   try {
