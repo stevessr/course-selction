@@ -3,11 +3,12 @@
     <a-layout-header style="background: #001529; padding: 0">
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 24px">
         <div style="color: white; font-size: 20px; font-weight: bold">
-          Course Management - Teacher
+          {{ t('nav.teacher') }} - {{ t('admin.courseManagement') }}
         </div>
         <a-space>
+          <LanguageSwitcher />
           <span style="color: white">{{ authStore.username }}</span>
-          <a-button type="primary" @click="handleLogout">Logout</a-button>
+          <a-button type="primary" @click="handleLogout">{{ t('nav.logout') }}</a-button>
         </a-space>
       </div>
     </a-layout-header>
@@ -20,13 +21,13 @@
           style="height: 100%; border-right: 0"
         >
           <a-menu-item key="courses" @click="$router.push('/teacher/courses')">
-            My Courses
+            {{ t('teacher.myCourses') }}
           </a-menu-item>
           <a-menu-item key="create" @click="$router.push('/teacher/create')">
-            Create Course
+            {{ t('teacher.createNewCourse') }}
           </a-menu-item>
           <a-menu-item key="settings" @click="$router.push('/teacher/settings')">
-            Settings
+            {{ t('nav.settings') }}
           </a-menu-item>
         </a-menu>
       </a-layout-sider>
@@ -42,8 +43,11 @@
 import { ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/store/auth'
-import { useThemeStore } from '@/store/theme'
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const route = useRoute()
@@ -59,7 +63,7 @@ watch(() => route.path, (path) => {
 
 const handleLogout = async () => {
   await authStore.logout()
-  message.success('Logged out successfully')
+  message.success(t('common.success'))
   router.push('/login')
 }
 </script>
