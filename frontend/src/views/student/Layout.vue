@@ -14,7 +14,7 @@
     </a-layout-header>
     
     <a-layout>
-      <a-layout-sider width="200" style="background: #fff">
+      <a-layout-sider width="200" :style="{ background: themeStore.isDark ? '#1f1f1f' : '#fff' }">
         <a-menu
           v-model:selectedKeys="selectedKeys"
           mode="inline"
@@ -35,7 +35,7 @@
         </a-menu>
       </a-layout-sider>
       
-      <a-layout-content style="padding: 24px; background: #fff">
+      <a-layout-content :style="{ padding: '24px', background: themeStore.isDark ? '#141414' : '#fff' }">
         <router-view />
       </a-layout-content>
     </a-layout>
@@ -48,12 +48,14 @@ import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/store/auth'
+import { useThemeStore } from '@/store/theme'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const themeStore = useThemeStore()
 
 const selectedKeys = ref(['courses'])
 
