@@ -7,7 +7,7 @@ from datetime import datetime
 # Course schemas
 class CourseBase(BaseModel):
     course_name: str = Field(..., min_length=1, max_length=200)
-    course_credit: int = Field(..., ge=0)
+    course_credit: float = Field(..., ge=0)
     course_type: str = Field(..., min_length=1, max_length=50)
     course_teacher_id: int = Field(..., ge=1)
     course_time_begin: Optional[int] = Field(None)  # Legacy field, optional
@@ -26,7 +26,7 @@ class CourseCreate(CourseBase):
 
 class CourseUpdate(BaseModel):
     course_name: Optional[str] = Field(None, min_length=1, max_length=200)
-    course_credit: Optional[int] = Field(None, ge=0)
+    course_credit: Optional[float] = Field(None, ge=0)
     course_type: Optional[str] = Field(None, min_length=1, max_length=50)
     course_teacher_id: Optional[int] = Field(None, ge=1)
     course_time_begin: Optional[int] = None

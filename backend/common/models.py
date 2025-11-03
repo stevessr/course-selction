@@ -1,5 +1,5 @@
 """Common database models used across services"""
-from sqlalchemy import Column, Integer, String, JSON, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, JSON, DateTime, Boolean, Float
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timezone
 
@@ -15,7 +15,7 @@ class Course(DataBase):
 
     course_id = Column(Integer, primary_key=True, autoincrement=True)
     course_name = Column(String(200), nullable=False)
-    course_credit = Column(Integer, nullable=False)
+    course_credit = Column(Float, nullable=False)
     course_type = Column(String(50), nullable=False)
     course_teacher_id = Column(Integer, nullable=False)
 

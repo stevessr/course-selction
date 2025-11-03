@@ -7,7 +7,10 @@
           <a-input v-model:value="form.course_name" />
         </a-form-item>
         <a-form-item label="Credits" name="course_credit" :rules="[{ required: true }]">
-          <a-input-number v-model:value="form.course_credit" :min="0" style="width: 100%" />
+          <a-input-number v-model:value="form.course_credit" :min="0" :step="0.5" style="width: 100%" />
+          <div style="margin-top: 4px; color: #666; font-size: 12px;">
+            Credits can be decimal values (e.g., 0.5, 1.5, 2.5)
+          </div>
         </a-form-item>
         <a-form-item label="Type" name="course_type" :rules="[{ required: true }]">
           <a-select v-model:value="form.course_type">
