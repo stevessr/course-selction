@@ -37,6 +37,7 @@ from backend.common.auth_helpers import (
 
 # Import router factories
 from backend.auth_node.routers.admin_course_routes import create_admin_course_router
+from backend.auth_node.routers.settings_routes import create_settings_router, ensure_system_settings
 
 # Configuration
 DATABASE_URL = get_database_url("auth_data.db")
@@ -179,7 +180,10 @@ async def verify_admin_or_internal(
 
 # Create and include routers
 admin_course_router = create_admin_course_router(get_db, get_current_admin)
+settings_router = create_settings_router(get_db, get_current_admin)
+
 app.include_router(admin_course_router)
+app.include_router(settings_router)
 
 
 # Student/Teacher Registration and Login
@@ -1642,60 +1646,6 @@ async def get_available_tags_admin(
             status_code=500, 
             detail=f"Error contacting data node: {str(e)}"
         )
-
-
-# ===== System Settings Management =====
-def ensure_system_settings(db: Session):
-    """Ensure system settings exist, create with defaults if not"""
-    settings = db.query(SystemSettings).first()
-    if not settings:
-        settings = SystemSettings(
-            student_registration_enabled=True,
-            teacher_registration_enabled=True
-        )
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-    return settings
-
-
-@app.get("/admin/settings", response_model=SystemSettingsResponse)
-async def get_system_settings(
-    current_admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """Get system settings (admin only)"""
-    settings = ensure_system_settings(db)
-    return SystemSettingsResponse(
-        student_registration_enabled=settings.student_registration_enabled,
-        teacher_registration_enabled=settings.teacher_registration_enabled,
-        updated_at=settings.updated_at
-    )
-
-
-@app.put("/admin/settings", response_model=SystemSettingsResponse)
-async def update_system_settings(
-    settings_update: SystemSettingsUpdate,
-    current_admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """Update system settings (admin only)"""
-    settings = ensure_system_settings(db)
-    
-    if settings_update.student_registration_enabled is not None:
-        settings.student_registration_enabled = settings_update.student_registration_enabled
-    if settings_update.teacher_registration_enabled is not None:
-        settings.teacher_registration_enabled = settings_update.teacher_registration_enabled
-    
-    settings.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(settings)
-    
-    return SystemSettingsResponse(
-        student_registration_enabled=settings.student_registration_enabled,
-        teacher_registration_enabled=settings.teacher_registration_enabled,
-        updated_at=settings.updated_at
-    )
 
 
 # ===== Refresh Token Endpoint =====
