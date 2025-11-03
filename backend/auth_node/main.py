@@ -14,7 +14,7 @@ load_dotenv()  # project root .env (fallbacks)
 load_dotenv(dotenv_path=Path(__file__).with_name('.env'), override=True)
 
 from backend.common import (
-    AuthBase, Student, Teacher, Admin, RefreshToken, RegistrationCode, ResetCode,
+    AuthBase, Student, Teacher, Admin, RefreshToken, RegistrationCode, ResetCode, SystemSettings,
     UserCreate, UserLogin, User2FA, UserResponse, AdminResponse,
     AdminCreate, AdminLogin,
     RegistrationCodeCreate, RegistrationCodeResponse,
@@ -2090,23 +2090,29 @@ async def disable_2fa(
 
 @app.get("/user/2fa/status")
 async def get_2fa_status(
-    current_user: dict = Depends(get_current_user_from_token),
+    authorization: str = Header(..., alias="Authorization"),
     db: Session = Depends(get_db)
 ):
     """Get current user's 2FA status"""
-    user_id = current_user.get("user_id")
-    user_type = current_user.get("user_type")
-    
-    # Get user from database
-    user = get_user_by_id(db, user_id, user_type)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    return {
-        "has_2fa": has_2fa(user),
-        "user_type": user_type,
-        "username": user.username
-    }
+    try:
+        token = authorization.replace("Bearer ", "")
+        payload = await get_current_user_from_token(token)
+        
+        user_id = payload.get("user_id")
+        user_type = payload.get("user_type")
+        
+        # Get user from database
+        user = get_user_by_id(db, user_id, user_type)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {
+            "has_2fa": has_2fa(user),
+            "user_type": user_type,
+            "username": user.username
+        }
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
 
 # Health check
