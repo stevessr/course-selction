@@ -291,6 +291,35 @@ async def get_courses(
     return {"courses": result, "total": total}
 
 
+@app.get("/get/course/students")
+async def get_course_students(
+    course_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_internal_token_header)
+):
+    """Get list of students enrolled in a specific course"""
+    # Get all students
+    students = db.query(StudentCourseData).all()
+    
+    # Filter students who have selected this course
+    enrolled_students = []
+    for student in students:
+        if course_id in student.student_courses:
+            # Get user info from User table
+            user = db.query(User).filter(User.user_id == student.student_id).first()
+            enrolled_students.append({
+                "student_id": student.student_id,
+                "username": user.username if user else "Unknown",
+                "name": user.name if user else student.student_name,
+                "user_id": student.student_id
+            })
+    
+    return {
+        "students": enrolled_students,
+        "total": len(enrolled_students)
+    }
+
+
 # Student endpoints
 @app.post("/add/student", response_model=StudentResponse, status_code=status.HTTP_201_CREATED)
 async def add_student(

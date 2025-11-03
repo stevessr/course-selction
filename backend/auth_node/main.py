@@ -1076,6 +1076,27 @@ async def list_users(
     }
 
 
+@app.get("/admin/user")
+async def get_user_by_username_endpoint(
+    username: str,
+    _: None = Depends(verify_internal_token_header),
+    db: Session = Depends(get_db)
+):
+    """Get user by username (internal only)"""
+    user = get_user_by_username(db, username)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "user_id": user.user_id,
+        "username": user.username,
+        "name": user.name,
+        "user_type": user.user_type,
+        "is_active": user.is_active,
+        "email": user.email
+    }
+
+
 @app.post("/admin/user/add")
 async def add_user_endpoint(
     user_data: dict,
