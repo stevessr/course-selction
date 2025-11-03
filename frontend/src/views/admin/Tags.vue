@@ -941,11 +941,15 @@ const handleCourseTagsTableChange = (pag) => {
 
 // Search filters
 const filterUserOption = (input, option) => {
-  return option.children[0].children.toLowerCase().includes(input.toLowerCase())
+  // The option structure in Ant Design Vue 4.x uses option.label or option.value
+  const label = option.label || option.value || ''
+  return label.toString().toLowerCase().includes(input.toLowerCase())
 }
 
 const filterCourseOption = (input, option) => {
-  return option.children[0].children.toLowerCase().includes(input.toLowerCase())
+  // The option structure in Ant Design Vue 4.x uses option.label or option.value
+  const label = option.label || option.value || ''
+  return label.toString().toLowerCase().includes(input.toLowerCase())
 }
 
 const handleUserSearch = (value) => {
