@@ -72,6 +72,7 @@ export default {
     available: '可用',
     availableSeats: '可用座位',
     capacity: '容量',
+  selected: '已选',
     credits: '学分',
     location: '地点',
     time: '时间',
@@ -149,7 +150,18 @@ export default {
   teacher: {
     createNewCourse: '创建新课程',
     myCourses: '我的课程',
-    teachingSchedule: '教学安排'
+    teachingSchedule: '教学安排',
+    deleteCourseConfirm: '确定要删除该课程吗？',
+    week: '第{week}周',
+    weekShort: '周',
+    totalClasses: '总节次',
+    totalStudents: '总人数',
+    loadingTeachingSchedule: '加载教学安排中...',
+    noCoursesAssigned: '暂无已分配课程',
+    viewStudents: '查看已选学生',
+    courseDetails: '课程详情',
+    enrollment: '选课情况',
+    weeks: '周次'
   },
   student: {
     availableCourses: '可选课程',

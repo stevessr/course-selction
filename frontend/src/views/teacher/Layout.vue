@@ -45,6 +45,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/store/auth'
+import { useThemeStore } from '@/store/theme'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 
 const { t } = useI18n()
