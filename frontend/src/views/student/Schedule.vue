@@ -27,7 +27,7 @@
                       <template #title>{{ item.course_name }}</template>
                       <template #description>
                         <div>{{ item.course_location }}</div>
-                        <div>Time: {{ item.course_time_begin }} - {{ item.course_time_end }}</div>
+                        <div>Time: {{ formatTime(item.course_time_begin) }} - {{ formatTime(item.course_time_end) }}</div>
                       </template>
                     </a-list-item-meta>
                   </a-list-item>
@@ -58,6 +58,14 @@ const schedule = ref(null)
 const dayNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 const getDayName = (day) => dayNames[day]
+
+const formatTime = (time) => {
+  if (!time) return ''
+  const timeStr = String(time).padStart(4, '0')
+  const hours = timeStr.slice(0, 2)
+  const minutes = timeStr.slice(2, 4)
+  return `${hours}:${minutes}`
+}
 
 const loadSchedule = async () => {
   loading.value = true
