@@ -140,6 +140,31 @@ async def create_course(
     }
 
 
+@app.post("/teacher/courses/bulk-import")
+async def bulk_import_courses(
+    courses_data: List[CourseCreate],
+    current_user: Dict[str, Any] = Depends(get_current_teacher)
+):
+    """Bulk import courses for teacher"""
+    teacher_id = current_user.get("user_id")
+    
+    # Set teacher_id for all courses
+    for course in courses_data:
+        if current_user.get("user_type") != "admin":
+            course.course_teacher_id = teacher_id
+    
+    # Call data node bulk import
+    url = f"{DATA_NODE_URL}/bulk/import/courses"
+    result = await call_service_api(
+        url,
+        method="POST",
+        headers={"Internal-Token": INTERNAL_TOKEN},
+        json_data=[c.model_dump() for c in courses_data]
+    )
+    
+    return result
+
+
 @app.put("/teacher/course/update")
 async def update_course(
     course_id: int,
@@ -240,6 +265,169 @@ async def remove_student_from_course(
     return {
         "success": True,
         "message": "Student removed from course successfully"
+    }
+
+
+@app.get("/teacher/course/students")
+async def get_course_students(
+    course_id: int,
+    current_user: Dict[str, Any] = Depends(get_current_teacher)
+):
+    """Get list of students enrolled in a specific course"""
+    # Get course to verify ownership
+    url = f"{DATA_NODE_URL}/get/course?course_id={course_id}"
+    course = await call_service_api(
+        url,
+        method="GET",
+        headers={"Internal-Token": INTERNAL_TOKEN}
+    )
+    
+    # Verify teacher owns this course (unless admin)
+    if current_user.get("user_type") != "admin":
+        if course["course_teacher_id"] != current_user.get("user_id"):
+            raise HTTPException(status_code=403, detail="Not authorized to view this course")
+    
+    # Get all students who selected this course
+    url = f"{DATA_NODE_URL}/get/course/students?course_id={course_id}"
+    result = await call_service_api(
+        url,
+        method="GET",
+        headers={"Internal-Token": INTERNAL_TOKEN}
+    )
+    
+    return result
+
+
+@app.get("/teacher/students")
+async def get_all_students(
+    current_user: Dict[str, Any] = Depends(get_current_teacher)
+):
+    """Get list of all students (for adding to courses)"""
+    # Get all users from auth node
+    url = f"{AUTH_NODE_URL}/admin/users?user_type=student&page=1&page_size=1000"
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            url,
+            headers={"Internal-Token": INTERNAL_TOKEN}
+        )
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail=f"Failed to fetch students: {response.text}")
+        
+        return response.json()
+
+
+@app.post("/teacher/course/add-students")
+async def add_students_to_course(
+    data: dict,
+    current_user: Dict[str, Any] = Depends(get_current_teacher)
+):
+    """Add multiple students to a course"""
+    course_id = data.get("course_id")
+    student_ids = data.get("student_ids", [])
+    
+    if not course_id or not student_ids:
+        raise HTTPException(status_code=400, detail="course_id and student_ids are required")
+    
+    # Get course to verify ownership
+    url = f"{DATA_NODE_URL}/get/course?course_id={course_id}"
+    course = await call_service_api(
+        url,
+        method="GET",
+        headers={"Internal-Token": INTERNAL_TOKEN}
+    )
+    
+    # Verify teacher owns this course (unless admin)
+    if current_user.get("user_type") != "admin":
+        if course["course_teacher_id"] != current_user.get("user_id"):
+            raise HTTPException(status_code=403, detail="Not authorized to modify this course")
+    
+    # Add each student to the course
+    success_count = 0
+    errors = []
+    
+    for student_id in student_ids:
+        try:
+            url = f"{DATA_NODE_URL}/select/course"
+            await call_service_api(
+                url,
+                method="POST",
+                headers={"Internal-Token": INTERNAL_TOKEN},
+                json_data={"student_id": student_id, "course_id": course_id}
+            )
+            success_count += 1
+        except Exception as e:
+            errors.append(f"Student {student_id}: {str(e)}")
+    
+    return {
+        "success": True,
+        "message": f"Added {success_count} students successfully",
+        "success_count": success_count,
+        "errors": errors
+    }
+
+
+@app.post("/teacher/course/bulk-add-students")
+async def bulk_add_students_to_course(
+    data: dict,
+    current_user: Dict[str, Any] = Depends(get_current_teacher)
+):
+    """Bulk add students to a course by usernames"""
+    course_id = data.get("course_id")
+    usernames = data.get("usernames", [])
+    
+    if not course_id or not usernames:
+        raise HTTPException(status_code=400, detail="course_id and usernames are required")
+    
+    # Get course to verify ownership
+    url = f"{DATA_NODE_URL}/get/course?course_id={course_id}"
+    course = await call_service_api(
+        url,
+        method="GET",
+        headers={"Internal-Token": INTERNAL_TOKEN}
+    )
+    
+    # Verify teacher owns this course (unless admin)
+    if current_user.get("user_type") != "admin":
+        if course["course_teacher_id"] != current_user.get("user_id"):
+            raise HTTPException(status_code=403, detail="Not authorized to modify this course")
+    
+    # Get user IDs from usernames via auth node
+    success_count = 0
+    errors = []
+    
+    for username in usernames:
+        try:
+            # Get user by username from auth node
+            url = f"{AUTH_NODE_URL}/admin/user?username={username}"
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    url,
+                    headers={"Internal-Token": INTERNAL_TOKEN}
+                )
+                if response.status_code != 200:
+                    errors.append(f"{username}: User not found")
+                    continue
+                
+                user_data = response.json()
+                student_id = user_data.get("user_id")
+                
+                # Add student to course
+                url = f"{DATA_NODE_URL}/select/course"
+                await call_service_api(
+                    url,
+                    method="POST",
+                    headers={"Internal-Token": INTERNAL_TOKEN},
+                    json_data={"student_id": student_id, "course_id": course_id}
+                )
+                success_count += 1
+        except Exception as e:
+            errors.append(f"{username}: {str(e)}")
+    
+    return {
+        "success": True,
+        "message": f"Added {success_count} students successfully",
+        "success_count": success_count,
+        "errors": errors
     }
 
 

@@ -1,11 +1,11 @@
 <template>
   <div class="settings-container">
-    <a-card title="账户设置 / Account Settings">
+    <a-card :title="t('student.accountSettings')">
       <!-- 2FA Required Alert for Students -->
       <a-alert
         v-if="!twoFAStatus.has_2fa"
-        message="⚠️ 需要启用双因素认证 / 2FA Setup Required"
-        description="为了保护您的账户安全，学生必须启用双因素认证才能访问选课系统。请完成以下设置。 / For account security, students must enable 2FA before accessing the course selection system. Please complete the setup below."
+        :message="`⚠️ ${t('student.twoFASetupRequired')}`"
+        :description="t('student.twoFASetupDesc')"
         type="warning"
         show-icon
         :closable="false"
@@ -14,7 +14,7 @@
 
       <a-tabs v-model:activeKey="activeTab">
         <!-- Password Change Tab -->
-        <a-tab-pane key="password" tab="修改密码 / Change Password">
+        <a-tab-pane key="password" :tab="t('student.changePassword')">
           <a-form
             :model="passwordForm"
             @finish="handlePasswordChange"
@@ -22,26 +22,26 @@
             style="max-width: 500px"
           >
             <a-form-item
-              label="当前密码 / Current Password"
+              :label="t('student.currentPassword')"
               name="old_password"
-              :rules="[{ required: true, message: '请输入当前密码' }]"
+              :rules="[{ required: true, message: t('student.enterCurrentPassword') }]"
             >
               <a-input-password v-model:value="passwordForm.old_password" />
             </a-form-item>
             
             <a-form-item
-              label="新密码 / New Password"
+              :label="t('student.newPassword')"
               name="new_password"
-              :rules="[{ required: true, min: 6, message: '密码至少6位' }]"
+              :rules="[{ required: true, min: 6, message: t('student.passwordMinLength') }]"
             >
               <a-input-password v-model:value="passwordForm.new_password" />
             </a-form-item>
             
             <a-form-item
-              label="确认新密码 / Confirm New Password"
+              :label="t('student.confirmPassword')"
               name="confirm_password"
               :rules="[
-                { required: true, message: '请确认新密码' },
+                { required: true, message: t('student.confirmNewPassword') },
                 { validator: validatePasswordMatch }
               ]"
             >
@@ -50,18 +50,18 @@
             
             <a-form-item>
               <a-button type="primary" html-type="submit" :loading="passwordLoading">
-                修改密码 / Change Password
+                {{ t('student.changePassword') }}
               </a-button>
             </a-form-item>
           </a-form>
         </a-tab-pane>
 
         <!-- 2FA Management Tab -->
-        <a-tab-pane key="2fa" tab="双因素认证 / 2FA (必须)">
+        <a-tab-pane key="2fa" :tab="`${t('student.twoFactorAuth')} ${t('student.twoFARequired')}`">
           <div v-if="twoFAStatus.has_2fa">
             <a-alert
-              message="双因素认证已启用 / 2FA Enabled"
-              description="您的账户已启用双因素认证保护"
+              :message="t('student.twoFAEnabled')"
+              :description="t('student.twoFAEnabledDesc')"
               type="success"
               show-icon
               style="margin-bottom: 20px"
@@ -74,24 +74,24 @@
               style="max-width: 500px"
             >
               <a-form-item
-                label="密码 / Password"
+                :label="t('user.password')"
                 name="password"
-                :rules="[{ required: true, message: '请输入密码' }]"
+                :rules="[{ required: true, message: t('student.enterPassword') }]"
               >
                 <a-input-password v-model:value="disable2FAForm.password" />
               </a-form-item>
               
               <a-form-item
-                label="2FA验证码 / 2FA Code"
+                :label="t('student.verificationCode')"
                 name="totp_code"
-                :rules="[{ required: true, message: '请输入6位验证码' }]"
+                :rules="[{ required: true, message: t('student.enter2FACode') }]"
               >
                 <a-input v-model:value="disable2FAForm.totp_code" placeholder="000000" maxlength="6" />
               </a-form-item>
               
               <a-form-item>
                 <a-button type="danger" html-type="submit" :loading="disable2FALoading">
-                  禁用2FA / Disable 2FA
+                  {{ t('student.disable2FA') }}
                 </a-button>
               </a-form-item>
             </a-form>
@@ -99,8 +99,8 @@
           
           <div v-else>
             <a-alert
-              message="⚠️ 双因素认证未启用 / 2FA Not Enabled (Required)"
-              description="作为学生用户，您必须启用双因素认证才能使用选课系统。这是强制性的安全要求。 / As a student, you must enable 2FA to use the course selection system. This is a mandatory security requirement."
+              :message="`⚠️ ${t('student.twoFANotEnabled')} ${t('student.twoFARequired')}`"
+              :description="t('student.twoFAMandatoryDesc')"
               type="error"
               show-icon
               style="margin-bottom: 20px"
@@ -114,16 +114,16 @@
                 style="max-width: 500px"
               >
                 <a-form-item
-                  label="密码 / Password"
+                  :label="t('user.password')"
                   name="password"
-                  :rules="[{ required: true, message: '请输入密码' }]"
+                  :rules="[{ required: true, message: t('student.enterPassword') }]"
                 >
                   <a-input-password v-model:value="setup2FAForm.password" />
                 </a-form-item>
                 
                 <a-form-item>
                   <a-button type="primary" html-type="submit" :loading="setup2FALoading">
-                    开始设置2FA / Start 2FA Setup
+                    {{ t('student.start2FASetup') }}
                   </a-button>
                 </a-form-item>
               </a-form>
@@ -131,8 +131,8 @@
             
             <div v-else>
               <a-steps :current="1" style="margin-bottom: 20px">
-                <a-step title="扫描二维码" description="Scan QR Code" />
-                <a-step title="验证" description="Verify" />
+                <a-step :title="t('student.scanQRCode')" />
+                <a-step :title="t('student.verify')" />
               </a-steps>
               
               <div style="text-align: center; margin-bottom: 20px">
@@ -140,7 +140,7 @@
                 <p style="margin-top: 10px">
                   <a-tag>{{ setup2FAData.secret }}</a-tag>
                 </p>
-                <p class="text-muted">使用认证器应用扫描二维码或手动输入密钥</p>
+                <p class="text-muted">{{ t('student.scanQRCodeHint') }}</p>
               </div>
               
               <a-form
@@ -150,9 +150,9 @@
                 style="max-width: 500px; margin: 0 auto"
               >
                 <a-form-item
-                  label="验证码 / Verification Code"
+                  :label="t('student.verificationCode')"
                   name="totp_code"
-                  :rules="[{ required: true, message: '请输入6位验证码' }]"
+                  :rules="[{ required: true, message: t('student.enter2FACode') }]"
                 >
                   <a-input v-model:value="verify2FAForm.totp_code" placeholder="000000" maxlength="6" />
                 </a-form-item>
@@ -160,9 +160,9 @@
                 <a-form-item>
                   <a-space>
                     <a-button type="primary" html-type="submit" :loading="verify2FALoading">
-                      验证并启用 / Verify & Enable
+                      {{ t('student.verifyAndEnable') }}
                     </a-button>
-                    <a-button @click="cancelSetup2FA">取消 / Cancel</a-button>
+                    <a-button @click="cancelSetup2FA">{{ t('common.cancel') }}</a-button>
                   </a-space>
                 </a-form-item>
               </a-form>
@@ -177,7 +177,12 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
+import { useI18n } from 'vue-i18n'
 import { changePassword, setup2FA, verify2FA, disable2FA, get2FAStatus } from '@/api/auth'
+import { useAuthStore } from '@/store/auth'
+
+const { t } = useI18n()
+const authStore = useAuthStore()
 
 const activeTab = ref('password')
 const passwordLoading = ref(false)
@@ -215,7 +220,7 @@ const setup2FAData = reactive({
 
 const validatePasswordMatch = async (rule, value) => {
   if (value !== passwordForm.new_password) {
-    return Promise.reject('两次输入的密码不一致')
+    return Promise.reject(t('student.passwordNotMatch'))
   }
   return Promise.resolve()
 }
@@ -227,12 +232,12 @@ const handlePasswordChange = async () => {
       old_password: passwordForm.old_password,
       new_password: passwordForm.new_password
     })
-    message.success('密码修改成功 / Password changed successfully')
+    message.success(t('student.passwordChangeSuccess'))
     passwordForm.old_password = ''
     passwordForm.new_password = ''
     passwordForm.confirm_password = ''
   } catch (error) {
-    message.error(error.response?.data?.detail || '密码修改失败')
+    message.error(error.response?.data?.detail || t('student.passwordChangeFailed'))
   } finally {
     passwordLoading.value = false
   }
@@ -244,9 +249,9 @@ const handleSetup2FA = async () => {
     const response = await setup2FA({ password: setup2FAForm.password })
     setup2FAData.qr_uri = response.qr_uri
     setup2FAData.secret = response.secret
-    message.success('请使用认证器应用扫描二维码')
+    message.success(t('student.use2FAApp'))
   } catch (error) {
-    message.error(error.response?.data?.detail || '2FA设置失败')
+    message.error(error.response?.data?.detail || t('student.passwordChangeFailed'))
   } finally {
     setup2FALoading.value = false
   }
@@ -256,7 +261,7 @@ const handleVerify2FA = async () => {
   verify2FALoading.value = true
   try {
     await verify2FA({ totp_code: verify2FAForm.totp_code })
-    message.success('2FA已成功启用！您现在可以使用选课系统了 / 2FA enabled successfully! You can now access the course selection system')
+    message.success(t('student.twoFAEnableSuccess'))
     twoFAStatus.has_2fa = true
     cancelSetup2FA()
     
@@ -265,7 +270,7 @@ const handleVerify2FA = async () => {
       window.location.href = '/student/courses'
     }, 2000)
   } catch (error) {
-    message.error(error.response?.data?.detail || '验证码错误')
+    message.error(error.response?.data?.detail || t('student.verificationFailed'))
   } finally {
     verify2FALoading.value = false
   }
@@ -278,12 +283,12 @@ const handleDisable2FA = async () => {
       password: disable2FAForm.password,
       totp_code: disable2FAForm.totp_code
     })
-    message.success('2FA已禁用 / 2FA disabled')
+    message.success(t('student.twoFADisabled'))
     twoFAStatus.has_2fa = false
     disable2FAForm.password = ''
     disable2FAForm.totp_code = ''
   } catch (error) {
-    message.error(error.response?.data?.detail || '禁用失败')
+    message.error(error.response?.data?.detail || t('student.disableFailed'))
   } finally {
     disable2FALoading.value = false
   }
@@ -298,7 +303,7 @@ const cancelSetup2FA = () => {
 
 const load2FAStatus = async () => {
   try {
-    const response = await get2FAStatus()
+    const response = await get2FAStatus(authStore.accessToken?.value || authStore.accessToken)
     twoFAStatus.has_2fa = response.has_2fa
     
     // Auto-switch to 2FA tab if not enabled (force students to set it up)

@@ -69,6 +69,9 @@
               <div>
                 <h3>批量操作 / Batch Operations</h3>
                 <a-space>
+                  <a-button @click="showBatchImportUserTagModal">
+                    批量导入用户标签
+                  </a-button>
                   <a-button @click="showBatchRemoveUserTagModal">
                     批量移除用户标签
                   </a-button>
@@ -179,6 +182,9 @@
               <div>
                 <h3>批量操作 / Batch Operations</h3>
                 <a-space>
+                  <a-button @click="showBatchImportCourseTagModal">
+                    批量导入课程标签
+                  </a-button>
                   <a-button @click="showBatchRemoveCourseTagModal">
                     批量移除课程标签
                   </a-button>
@@ -238,6 +244,32 @@
       </a-tabs>
     </a-card>
 
+    <!-- Batch Import User Tag Modal -->
+    <a-modal
+      v-model:open="batchImportUserTagModalVisible"
+      title="批量导入用户标签 / Batch Import User Tags"
+      @ok="handleBatchImportUserTag"
+      :confirm-loading="batchOperationLoading"
+      width="700px"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="CSV 数据 / CSV Data">
+          <a-textarea
+            v-model:value="batchImportUserTagText"
+            placeholder="格式 / Format: username,tag1,tag2,...,tagn&#10;例如 / Example:&#10;student1,math,science&#10;student2,english,history,art"
+            :rows="10"
+          />
+        </a-form-item>
+        <a-alert
+          message="格式说明 / Format"
+          description="每行一个用户，格式为：用户名,标签1,标签2,...,标签n。标签将被添加到用户现有标签中（不会覆盖）。Each line: username,tag1,tag2,...,tagn. Tags will be added to existing user tags."
+          type="info"
+          show-icon
+          style="margin-top: 8px;"
+        />
+      </a-form>
+    </a-modal>
+
     <!-- Batch Remove User Tag Modal -->
     <a-modal
       v-model:open="batchRemoveUserTagModalVisible"
@@ -274,6 +306,32 @@
         <a-form-item label="新标签 / New tag">
           <a-input v-model:value="batchReplaceUserTagNew" placeholder="Enter new tag" />
         </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- Batch Import Course Tag Modal -->
+    <a-modal
+      v-model:open="batchImportCourseTagModalVisible"
+      title="批量导入课程标签 / Batch Import Course Tags"
+      @ok="handleBatchImportCourseTag"
+      :confirm-loading="batchOperationLoading"
+      width="700px"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="CSV 数据 / CSV Data">
+          <a-textarea
+            v-model:value="batchImportCourseTagText"
+            placeholder="格式 / Format: course_name,tag1,tag2,...,tagn&#10;例如 / Example:&#10;数学,math,science&#10;英语,english,language"
+            :rows="10"
+          />
+        </a-form-item>
+        <a-alert
+          message="格式说明 / Format"
+          description="每行一门课程，格式为：课程名,标签1,标签2,...,标签n。标签将被添加到课程现有标签中。Each line: course_name,tag1,tag2,...,tagn. Tags will be added to existing course tags."
+          type="info"
+          show-icon
+          style="margin-top: 8px;"
+        />
       </a-form>
     </a-modal>
 
@@ -364,12 +422,16 @@ const courseTagsPagination = reactive({
 })
 
 // Batch modals
+const batchImportUserTagModalVisible = ref(false)
+const batchImportUserTagText = ref('')
 const batchRemoveUserTagModalVisible = ref(false)
 const batchRemoveUserTagValue = ref(null)
 const batchReplaceUserTagModalVisible = ref(false)
 const batchReplaceUserTagOld = ref(null)
 const batchReplaceUserTagNew = ref('')
 
+const batchImportCourseTagModalVisible = ref(false)
+const batchImportCourseTagText = ref('')
 const batchRemoveCourseTagModalVisible = ref(false)
 const batchRemoveCourseTagValue = ref(null)
 const batchReplaceCourseTagModalVisible = ref(false)
@@ -641,6 +703,39 @@ const removeCourseTag = async (tag) => {
 }
 
 // Batch operations
+const showBatchImportUserTagModal = () => {
+  batchImportUserTagModalVisible.value = true
+}
+
+const handleBatchImportUserTag = async () => {
+  if (!batchImportUserTagText.value || !batchImportUserTagText.value.trim()) {
+    message.warning('请输入CSV数据')
+    return
+  }
+  
+  batchOperationLoading.value = true
+  try {
+    const result = await adminApi.batchImportUserTags(authStore.accessToken, batchImportUserTagText.value)
+    
+    if (result.failed_count > 0) {
+      message.warning(`导入完成: ${result.imported_count} 成功, ${result.failed_count} 失败`)
+      console.log('Import errors:', result.details.failed)
+    } else {
+      message.success(`成功导入 ${result.imported_count} 个用户的标签`)
+    }
+    
+    batchImportUserTagModalVisible.value = false
+    batchImportUserTagText.value = ''
+    await loadAvailableTags()
+    await loadUsers()
+    await loadUsersWithTags()
+  } catch (error) {
+    message.error('批量导入失败: ' + (error.response?.data?.detail || error.message))
+  } finally {
+    batchOperationLoading.value = false
+  }
+}
+
 const showBatchRemoveUserTagModal = () => {
   batchRemoveUserTagModalVisible.value = true
 }
@@ -693,6 +788,79 @@ const handleBatchReplaceUserTag = async () => {
     await loadUsersWithTags()
   } catch (error) {
     message.error('替换标签失败: ' + (error.response?.data?.detail || error.message))
+  } finally {
+    batchOperationLoading.value = false
+  }
+}
+
+const showBatchImportCourseTagModal = () => {
+  batchImportCourseTagModalVisible.value = true
+}
+
+const handleBatchImportCourseTag = async () => {
+  if (!batchImportCourseTagText.value || !batchImportCourseTagText.value.trim()) {
+    message.warning('请输入CSV数据')
+    return
+  }
+  
+  batchOperationLoading.value = true
+  try {
+    // Parse CSV and update courses
+    const lines = batchImportCourseTagText.value.trim().split('\n')
+    let successCount = 0
+    let failCount = 0
+    const errors = []
+    
+    for (const line of lines) {
+      if (!line.trim()) continue
+      
+      const parts = line.split(',').map(p => p.trim())
+      if (parts.length < 2) {
+        failCount++
+        errors.push({ line, error: 'Invalid format' })
+        continue
+      }
+      
+      const courseName = parts[0]
+      const tags = parts.slice(1).filter(t => t)
+      
+      // Find course by name
+      const course = coursesWithTags.value.find(c => c.course_name === courseName)
+      if (!course) {
+        failCount++
+        errors.push({ line, error: `Course "${courseName}" not found` })
+        continue
+      }
+      
+      try {
+        const existingTags = course.course_tags || []
+        const updatedTags = [...new Set([...existingTags, ...tags])]
+        
+        await adminApi.updateCourse(authStore.accessToken, {
+          course_id: course.course_id,
+          course_tags: updatedTags
+        })
+        successCount++
+      } catch (error) {
+        failCount++
+        errors.push({ line, error: error.message })
+      }
+    }
+    
+    if (failCount > 0) {
+      message.warning(`导入完成: ${successCount} 成功, ${failCount} 失败`)
+      console.log('Import errors:', errors)
+    } else {
+      message.success(`成功导入 ${successCount} 门课程的标签`)
+    }
+    
+    batchImportCourseTagModalVisible.value = false
+    batchImportCourseTagText.value = ''
+    await loadAvailableTags()
+    await loadCourses()
+    await loadCoursesWithTags()
+  } catch (error) {
+    message.error('批量导入失败: ' + (error.response?.data?.detail || error.message))
   } finally {
     batchOperationLoading.value = false
   }
@@ -773,11 +941,15 @@ const handleCourseTagsTableChange = (pag) => {
 
 // Search filters
 const filterUserOption = (input, option) => {
-  return option.children[0].children.toLowerCase().includes(input.toLowerCase())
+  // The option structure in Ant Design Vue 4.x uses option.label or option.value
+  const label = option.label || option.value || ''
+  return label.toString().toLowerCase().includes(input.toLowerCase())
 }
 
 const filterCourseOption = (input, option) => {
-  return option.children[0].children.toLowerCase().includes(input.toLowerCase())
+  // The option structure in Ant Design Vue 4.x uses option.label or option.value
+  const label = option.label || option.value || ''
+  return label.toString().toLowerCase().includes(input.toLowerCase())
 }
 
 const handleUserSearch = (value) => {

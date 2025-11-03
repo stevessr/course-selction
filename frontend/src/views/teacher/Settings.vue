@@ -167,7 +167,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { changePassword, setup2FA, verify2FA, disable2FA, get2FAStatus } from '@/api/auth'
+import { useAuthStore } from '@/store/auth'
 
+const authStore = useAuthStore()
 const activeTab = ref('password')
 const passwordLoading = ref(false)
 const setup2FALoading = ref(false)
@@ -282,7 +284,7 @@ const cancelSetup2FA = () => {
 
 const load2FAStatus = async () => {
   try {
-    const response = await get2FAStatus()
+    const response = await get2FAStatus(authStore.accessToken?.value || authStore.accessToken)
     twoFAStatus.has_2fa = response.has_2fa
   } catch (error) {
     console.error('Failed to load 2FA status:', error)

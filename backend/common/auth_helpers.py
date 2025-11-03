@@ -4,7 +4,7 @@ from typing import Optional, Union
 from .models import Student, Teacher, Admin
 
 
-async def get_user_by_username(db: Session, username: str, user_type: Optional[str] = None) -> Optional[Union[Student, Teacher, Admin]]:
+def get_user_by_username(db: Session, username: str, user_type: Optional[str] = None) -> Optional[Union[Student, Teacher, Admin]]:
     """Get user by username from appropriate table in auth database.
 
     Args:
@@ -36,7 +36,7 @@ async def get_user_by_username(db: Session, username: str, user_type: Optional[s
     return None
 
 
-async def get_user_by_id(db: Session, user_id: int, user_type: str) -> Optional[Union[Student, Teacher, Admin]]:
+def get_user_by_id(db: Session, user_id: int, user_type: str) -> Optional[Union[Student, Teacher, Admin]]:
     """Get user by ID from appropriate table in auth database.
 
     Args:

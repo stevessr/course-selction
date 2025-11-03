@@ -251,6 +251,9 @@ async def get_course(
 async def get_courses(
     teacher_id: Optional[int] = None,
     course_type: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
     db: Session = Depends(get_db),
     _: None = Depends(verify_internal_token_header)
 ):
@@ -263,7 +266,21 @@ async def get_courses(
     if course_type:
         query = query.filter(Course.course_type == course_type)
     
-    courses = query.all()
+    if search:
+        # Search in course name, location, and notes
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (Course.course_name.ilike(search_pattern)) |
+            (Course.course_location.ilike(search_pattern)) |
+            (Course.course_notes.ilike(search_pattern))
+        )
+    
+    # Get total count before pagination
+    total = query.count()
+    
+    # Apply pagination
+    offset = (page - 1) * page_size
+    courses = query.offset(offset).limit(page_size).all()
     
     result = []
     for course in courses:
@@ -271,7 +288,33 @@ async def get_courses(
         course.course_selected = course.course_selected_count  # Set to count for response
         result.append(course)
     
-    return {"courses": result, "total": len(result)}
+    return {"courses": result, "total": total}
+
+
+@app.get("/get/course/students")
+async def get_course_students(
+    course_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_internal_token_header)
+):
+    """Get list of students enrolled in a specific course"""
+    # Get all students
+    students = db.query(StudentCourseData).all()
+    
+    # Filter students who have selected this course
+    enrolled_students = []
+    for student in students:
+        if course_id in student.student_courses:
+            enrolled_students.append({
+                "student_id": student.student_id,
+                "name": student.student_name,
+                "user_id": student.student_id
+            })
+    
+    return {
+        "students": enrolled_students,
+        "total": len(enrolled_students)
+    }
 
 
 # Student endpoints

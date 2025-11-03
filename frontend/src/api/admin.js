@@ -88,6 +88,14 @@ const adminApi = {
     })
   },
 
+  // Batch import user tags from CSV
+  batchImportUserTags(accessToken, csvText) {
+    return api.post('/auth/admin/student/batch-import-tags',
+      { csv_text: csvText },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
   // Course Management (Admin access)
   
   // List all courses
@@ -158,6 +166,40 @@ const adminApi = {
   // Get system statistics
   getSystemStats(accessToken) {
     return api.get('/auth/admin/stats', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+  },
+
+  // Course-Student Management
+
+  // Get students enrolled in a course
+  getCourseStudents(accessToken, courseId) {
+    return api.get('/admin/course/students', {
+      params: { course_id: courseId },
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+  },
+
+  // Add students to a course
+  addStudentsToCourse(accessToken, courseId, studentIds) {
+    return api.post('/admin/course/add-students',
+      { course_id: courseId, student_ids: studentIds },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
+  // Bulk add students to course by usernames
+  bulkAddStudentsToCourse(accessToken, courseId, usernames) {
+    return api.post('/admin/course/bulk-add-students',
+      { course_id: courseId, usernames },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
+  // Get users (helper function)
+  getUsers(accessToken, userType = null) {
+    return api.get('/auth/admin/users', {
+      params: { user_type: userType, page: 1, page_size: 1000 },
       headers: { Authorization: `Bearer ${accessToken}` }
     })
   },

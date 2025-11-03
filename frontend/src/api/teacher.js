@@ -41,11 +41,49 @@ const teacherApi = {
     )
   },
 
+  // Bulk import courses
+  bulkImportCourses(accessToken, coursesData) {
+    return api.post('/teacher/courses/bulk-import',
+      coursesData,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
   // Remove student from course
   removeStudent(accessToken, courseId, studentId) {
     return api.post('/teacher/student/remove',
       null,
       { params: { course_id: courseId, student_id: studentId }, headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
+  // Get students enrolled in a course
+  getCourseStudents(accessToken, courseId) {
+    return api.get('/teacher/course/students',
+      { params: { course_id: courseId }, headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
+  // Get all students (for adding to courses)
+  getStudents(accessToken) {
+    return api.get('/teacher/students',
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
+  // Add students to a course
+  addStudentsToCourse(accessToken, courseId, studentIds) {
+    return api.post('/teacher/course/add-students',
+      { course_id: courseId, student_ids: studentIds },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  },
+
+  // Bulk add students to course by usernames
+  bulkAddStudentsToCourse(accessToken, courseId, usernames) {
+    return api.post('/teacher/course/bulk-add-students',
+      { course_id: courseId, usernames },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
     )
   },
 

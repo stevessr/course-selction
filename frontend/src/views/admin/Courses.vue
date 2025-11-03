@@ -168,11 +168,23 @@
         </a-form-item>
 
         <a-form-item label="开始时间 / Time Begin">
-          <a-input-number v-model:value="editForm.course_time_begin" style="width: 100%" />
+          <a-time-picker
+            v-model:value="editForm.course_time_begin_picker"
+            format="HH:mm"
+            :minuteStep="5"
+            style="width: 100%"
+            placeholder="Select start time"
+          />
         </a-form-item>
 
         <a-form-item label="结束时间 / Time End">
-          <a-input-number v-model:value="editForm.course_time_end" style="width: 100%" />
+          <a-time-picker
+            v-model:value="editForm.course_time_end_picker"
+            format="HH:mm"
+            :minuteStep="5"
+            style="width: 100%"
+            placeholder="Select end time"
+          />
         </a-form-item>
 
         <a-form-item label="课程标签 / Course Tags">
@@ -260,6 +272,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/store/auth'
 import adminApi from '@/api/admin'
+import dayjs from 'dayjs'
 import {
   UploadOutlined,
   DownloadOutlined,
@@ -301,6 +314,8 @@ const editForm = reactive({
   course_capacity: 30,
   course_time_begin: 800,
   course_time_end: 950,
+  course_time_begin_picker: null,
+  course_time_end_picker: null,
   course_tags: [],
   course_notes: '',
   course_cost: 0,
@@ -405,6 +420,14 @@ const handleTableChange = (pag) => {
 }
 
 const showEditModal = (course) => {
+  // Convert time integers to dayjs objects
+  const timeBegin = course.course_time_begin || 800
+  const timeEnd = course.course_time_end || 950
+  const hourBegin = Math.floor(timeBegin / 100)
+  const minuteBegin = timeBegin % 100
+  const hourEnd = Math.floor(timeEnd / 100)
+  const minuteEnd = timeEnd % 100
+  
   Object.assign(editForm, {
     course_id: course.course_id,
     course_name: course.course_name,
@@ -414,6 +437,8 @@ const showEditModal = (course) => {
     course_capacity: course.course_capacity,
     course_time_begin: course.course_time_begin,
     course_time_end: course.course_time_end,
+    course_time_begin_picker: dayjs().hour(hourBegin).minute(minuteBegin),
+    course_time_end_picker: dayjs().hour(hourEnd).minute(minuteEnd),
     course_tags: course.course_tags || [],
     course_notes: course.course_notes || '',
     course_cost: course.course_cost || 0,
@@ -431,6 +456,8 @@ const resetEditForm = () => {
     course_capacity: 30,
     course_time_begin: 800,
     course_time_end: 950,
+    course_time_begin_picker: null,
+    course_time_end_picker: null,
     course_tags: [],
     course_notes: '',
     course_cost: 0,
@@ -441,6 +468,18 @@ const resetEditForm = () => {
 const handleUpdateCourse = async () => {
   editLoading.value = true
   try {
+    // Convert time picker values to integer format
+    if (editForm.course_time_begin_picker) {
+      const hour = editForm.course_time_begin_picker.hour()
+      const minute = editForm.course_time_begin_picker.minute()
+      editForm.course_time_begin = hour * 100 + minute
+    }
+    if (editForm.course_time_end_picker) {
+      const hour = editForm.course_time_end_picker.hour()
+      const minute = editForm.course_time_end_picker.minute()
+      editForm.course_time_end = hour * 100 + minute
+    }
+    
     await adminApi.updateCourse(authStore.accessToken, editForm)
     message.success('课程更新成功')
     resetEditForm()
