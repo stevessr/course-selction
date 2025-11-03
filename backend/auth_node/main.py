@@ -139,6 +139,41 @@ async def get_current_admin(
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
+async def verify_admin_or_internal(
+    authorization: Optional[str] = Header(None),
+    internal_token: Optional[str] = Header(None, alias="Internal-Token"),
+    db: Session = Depends(get_db)
+):
+    """Verify either admin token or internal service token"""
+    # Check internal token first
+    if internal_token and internal_token == INTERNAL_TOKEN:
+        return None  # Internal service call
+    
+    # Otherwise require admin auth
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization required"
+        )
+    
+    try:
+        token = authorization.replace("Bearer ", "")
+        payload = await get_current_user_from_token(token)
+        
+        if payload.get("user_type") != "admin":
+            raise HTTPException(status_code=403, detail="Admin access required")
+        
+        admin = db.query(Admin).filter(Admin.admin_id == payload.get("user_id")).first()
+        if not admin:
+            raise HTTPException(status_code=404, detail="Admin not found")
+        
+        return admin
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
 # Student/Teacher Registration and Login
 @app.post("/register/v1", response_model=dict)
 async def register_v1(
@@ -966,10 +1001,10 @@ async def list_users(
     page: int = 1,
     page_size: int = 20,
     search: str = "",
-    current_admin: Admin = Depends(get_current_admin),
+    _: None = Depends(verify_admin_or_internal),
     db: Session = Depends(get_db)
 ):
-    """List all users (admin only)"""
+    """List all users (admin or internal service only)"""
     all_users_data = []
     total = 0
     

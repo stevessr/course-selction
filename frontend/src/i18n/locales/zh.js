@@ -29,7 +29,8 @@ export default {
     all: '全部',
     none: '无',
     yes: '是',
-    no: '否'
+    no: '否',
+    remove: '移除'
   },
   nav: {
     home: '首页',
