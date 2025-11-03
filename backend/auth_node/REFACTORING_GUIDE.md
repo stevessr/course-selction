@@ -1,16 +1,40 @@
 # Auth Node Refactoring Guide
 
-## Current Status
-- **Current size**: 2134 lines
+## Current Status (Updated)
+- **Original size**: 2134 lines
+- **Current size**: 1908 lines  
 - **Target**: Under 500 lines
-- **Progress**: admin_course_routes.py module created (saves ~184 lines)
+- **Progress**: 
+  - admin_course_routes.py module created (-184 lines) ✅
+  - settings_routes.py module created (-54 lines) ✅
+  - **Total reduction so far**: 226 lines (11%)
+  - **Remaining to extract**: ~1408 lines to reach target
 
-## Recommended Refactoring Approach
+## Completed Extractions
 
-The auth_node/main.py file should be split into the following router modules:
+### ✅ Admin Course Routes Module (`admin_course_routes.py`)
+**Lines Saved**: ~184 lines
+**Endpoints**:
+- `/admin/courses` - List all courses
+- `/admin/course/update` - Update course
+- `/admin/course/delete` - Delete course
+- `/admin/courses/bulk-import` - Bulk import courses
+- `/admin/courses/batch-assign-teacher` - Batch assign teacher
 
-### 1. Authentication Routes Module (`auth_routes.py`)
-**Lines**: 177-776 (~600 lines)
+### ✅ Settings Routes Module (`settings_routes.py`)
+**Lines Saved**: ~54 lines
+**Endpoints**:
+- `/admin/settings` (GET) - Get system settings
+- `/admin/settings` (PUT) - Update system settings
+**Helper Functions**:
+- `ensure_system_settings()` - Ensure settings exist
+
+## Remaining Refactoring Work
+
+To bring auth_node under 500 lines, approximately 1408 more lines need to be extracted:
+
+### 1. Authentication Routes Module (`auth_routes.py`) - PRIORITY
+**Lines**: 189-788 (~600 lines) - **LARGEST SECTION**
 **Endpoints**:
 - `/register/v1` - User registration phase 1
 - `/register/v2` - User registration phase 2
@@ -24,18 +48,8 @@ The auth_node/main.py file should be split into the following router modules:
 - `/refresh` - Refresh access token
 - `/get/user` - Get current user info
 
-### 2. Admin Basic Routes Module (`admin_basic_routes.py`)
-**Lines**: 777-997 (~221 lines)
-**Endpoints**:
-- `/login/admin` - Admin login
-- `/add/admin` - Add new admin
-- `/generate/registration-code` - Generate registration code
-- `/generate/reset-code` - Generate reset code
-- `/admin/reset-codes` - List reset codes
-- `/reset/2fa` - Reset user 2FA
-
-### 3. User Management Routes Module (`user_management_routes.py`)
-**Lines**: 998-1639 (~642 lines) - **LARGEST SECTION**
+### 2. User Management Routes Module (`user_management_routes.py`) - PRIORITY
+**Lines**: Approximately 998-1639 in original (~642 lines) - **SECOND LARGEST**
 **Endpoints**:
 - `/admin/users` - List all users
 - `/admin/user` - Get user by username
@@ -48,31 +62,36 @@ The auth_node/main.py file should be split into the following router modules:
 - `/admin/student/batch-import-tags` - Batch import student tags
 - `/admin/tags/available` - Get available tags
 
-### 4. Admin Course Routes Module (`admin_course_routes.py`) ✅ DONE
-**Lines**: 1639-1823 (~185 lines)
+### 3. Admin Basic Routes Module (`admin_basic_routes.py`)
+**Lines**: Approximately 789-997 in original (~221 lines)
 **Endpoints**:
-- `/admin/courses` - List all courses
-- `/admin/course/update` - Update course
-- `/admin/course/delete` - Delete course
-- `/admin/courses/bulk-import` - Bulk import courses
-- `/admin/courses/batch-assign-teacher` - Batch assign teacher
+- `/login/admin` - Admin login
+- `/add/admin` - Add new admin
+- `/generate/registration-code` - Generate registration code
+- `/generate/reset-code` - Generate reset code
+- `/admin/reset-codes` - List reset codes
+- `/reset/2fa` - Reset user 2FA
 
-### 5. Settings Routes Module (`settings_routes.py`)
-**Lines**: 1823-1876 (~54 lines + ensure_system_settings helper)
-**Endpoints**:
-- `/admin/settings` (GET) - Get system settings
-- `/admin/settings` (PUT) - Update system settings
-**Helper Functions**:
-- `ensure_system_settings()` - Ensure settings exist
-
-### 6. User Account Routes Module (`user_account_routes.py`)
-**Lines**: 1953-2122 (~170 lines)
+### 4. User Account Routes Module (`user_account_routes.py`)
+**Lines**: Approximately 1727-1895 in current file (~170 lines)
 **Endpoints**:
 - `/user/change-password` - Change password
 - `/user/2fa/setup` - Setup 2FA
 - `/user/2fa/verify` - Verify 2FA
 - `/user/2fa/disable` - Disable 2FA
 - `/user/2fa/status` - Get 2FA status
+
+## Recommended Extraction Order
+
+Based on size and complexity:
+
+1. **Authentication Routes** (600 lines) - Largest, relatively self-contained
+2. **User Management Routes** (642 lines) - Second largest, complex with many dependencies
+3. **Admin Basic Routes** (221 lines) - Medium size
+4. **User Account Routes** (170 lines) - Smallest, self-contained
+
+Extracting the first two would bring the file down to ~666 lines.
+Extracting all four would bring it down to ~275 lines - well under the 500-line target!
 
 ## Implementation Pattern
 
