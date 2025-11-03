@@ -107,6 +107,17 @@ def get_db():
         db.close()
 
 
+async def verify_internal_token_header(
+    internal_token: str = Header(..., alias="Internal-Token")
+):
+    """Verify internal service token"""
+    if internal_token != INTERNAL_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid internal token"
+        )
+
+
 async def get_current_admin(
     authorization: str = Header(...),
     db: Session = Depends(get_db)
