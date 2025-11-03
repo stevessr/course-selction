@@ -325,12 +325,26 @@ async def add_student(
     _: None = Depends(verify_internal_token_header)
 ):
     """Add a new student"""
-    # Check if student already exists
-    existing = db.query(StudentCourseData).filter(StudentCourseData.student_name == student.student_name).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Student already exists")
+    # Check if student already exists by ID or name
+    if student.student_id:
+        existing = db.query(StudentCourseData).filter(StudentCourseData.student_id == student.student_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Student with this ID already exists")
+    
+    existing_name = db.query(StudentCourseData).filter(StudentCourseData.student_name == student.student_name).first()
+    if existing_name:
+        raise HTTPException(status_code=400, detail="Student with this name already exists")
 
-    db_student = StudentCourseData(student_name=student.student_name, student_courses=[], student_tags=student.student_tags)
+    # Create student with explicit ID if provided (for auth sync)
+    student_data = {
+        "student_name": student.student_name,
+        "student_courses": [],
+        "student_tags": student.student_tags
+    }
+    if student.student_id:
+        student_data["student_id"] = student.student_id
+    
+    db_student = StudentCourseData(**student_data)
     db.add(db_student)
     db.commit()
     db.refresh(db_student)
@@ -423,11 +437,25 @@ async def add_teacher(
     _: None = Depends(verify_internal_token_header)
 ):
     """Add a new teacher"""
-    existing = db.query(TeacherCourseData).filter(TeacherCourseData.teacher_name == teacher.teacher_name).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Teacher already exists")
+    # Check if teacher already exists by ID or name
+    if teacher.teacher_id:
+        existing = db.query(TeacherCourseData).filter(TeacherCourseData.teacher_id == teacher.teacher_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Teacher with this ID already exists")
+    
+    existing_name = db.query(TeacherCourseData).filter(TeacherCourseData.teacher_name == teacher.teacher_name).first()
+    if existing_name:
+        raise HTTPException(status_code=400, detail="Teacher with this name already exists")
 
-    db_teacher = TeacherCourseData(teacher_name=teacher.teacher_name, teacher_courses=[])
+    # Create teacher with explicit ID if provided (for auth sync)
+    teacher_data = {
+        "teacher_name": teacher.teacher_name,
+        "teacher_courses": []
+    }
+    if teacher.teacher_id:
+        teacher_data["teacher_id"] = teacher.teacher_id
+    
+    db_teacher = TeacherCourseData(**teacher_data)
     db.add(db_teacher)
     db.commit()
     db.refresh(db_teacher)

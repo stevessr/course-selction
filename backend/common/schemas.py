@@ -56,6 +56,7 @@ class CourseResponse(CourseBase):
 class StudentCreate(BaseModel):
     student_name: str = Field(..., min_length=1, max_length=100)
     student_tags: List[str] = Field(default_factory=list)
+    student_id: Optional[int] = None  # Optional: used to sync ID from auth node
 
 
 class StudentResponse(BaseModel):
@@ -73,6 +74,7 @@ class StudentResponse(BaseModel):
 # Teacher schemas
 class TeacherCreate(BaseModel):
     teacher_name: str = Field(..., min_length=1, max_length=100)
+    teacher_id: Optional[int] = None  # Optional: used to sync ID from auth node
 
 
 class TeacherResponse(BaseModel):

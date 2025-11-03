@@ -243,6 +243,7 @@ async def register_v1(
                 student_tags = reg_code.code_tags or []
             
             student_payload = {
+                "student_id": user_id,  # Sync student_id from auth to course data
                 "student_name": user_data.username,  # Set to username initially
                 "student_tags": student_tags
             }
@@ -273,6 +274,7 @@ async def register_v1(
         async with httpx.AsyncClient() as client:
             headers = {"Internal-Token": internal_token}
             teacher_payload = {
+                "teacher_id": user_id,  # Sync teacher_id from auth to course data
                 "teacher_name": user_data.username  # Set to username initially
             }
             response = await client.post(f"{data_node_url}/add/teacher", json=teacher_payload, headers=headers)
@@ -1203,6 +1205,7 @@ async def add_user_endpoint(
             internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
 
             student_payload = {
+                "student_id": new_student.student_id,  # Sync student_id from auth to course data
                 "student_name": username,
                 "student_tags": []
             }
@@ -1236,6 +1239,7 @@ async def add_user_endpoint(
             internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
 
             teacher_payload = {
+                "teacher_id": new_teacher.teacher_id,  # Sync teacher_id from auth to course data
                 "teacher_name": username,
             }
             headers = {"Internal-Token": internal_token}
