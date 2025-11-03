@@ -35,6 +35,9 @@ from backend.common.auth_helpers import (
     has_2fa, get_totp_secret, set_totp_secret, is_active
 )
 
+# Import router factories
+from backend.auth_node.routers.admin_course_routes import create_admin_course_router
+
 # Configuration
 DATABASE_URL = get_database_url("auth_data.db")
 DATA_NODE_URL = os.getenv("DATA_NODE_URL", "http://localhost:8001")
@@ -172,6 +175,11 @@ async def verify_admin_or_internal(
         raise
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+# Create and include routers
+admin_course_router = create_admin_course_router(get_db, get_current_admin)
+app.include_router(admin_course_router)
 
 
 # Student/Teacher Registration and Login
@@ -1634,190 +1642,6 @@ async def get_available_tags_admin(
             status_code=500, 
             detail=f"Error contacting data node: {str(e)}"
         )
-
-
-# Admin course management endpoints
-@app.get("/admin/courses")
-async def list_all_courses(
-    page: int = 1,
-    page_size: int = 20,
-    search: Optional[str] = None,
-    course_type: Optional[str] = None,
-    current_admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """List all courses (admin only)"""
-    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
-    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            params = {"page": page, "page_size": page_size}
-            if search:
-                params["search"] = search
-            if course_type:
-                params["course_type"] = course_type
-                
-            headers = {"Internal-Token": internal_token}
-            response = await client.get(f"{data_node_url}/get/courses", params=params, headers=headers)
-            
-            if response.status_code != 200:
-                raise HTTPException(status_code=500, detail=f"Failed to fetch courses: {response.text}")
-            
-            return response.json()
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
-
-
-@app.post("/admin/course/update")
-async def update_course_admin(
-    data: dict,
-    current_admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """Update course (admin only)"""
-    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
-    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
-    
-    course_id = data.get("course_id")
-    if not course_id:
-        raise HTTPException(status_code=400, detail="course_id is required")
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            headers = {"Internal-Token": internal_token}
-            response = await client.post(
-                f"{data_node_url}/update/course",
-                params={"course_id": course_id},
-                json=data,
-                headers=headers
-            )
-            
-            if response.status_code != 200:
-                raise HTTPException(status_code=500, detail=f"Failed to update course: {response.text}")
-            
-            return response.json()
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
-
-
-@app.post("/admin/course/delete")
-async def delete_course_admin(
-    data: dict,
-    current_admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """Delete course (admin only)"""
-    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
-    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
-    
-    course_id = data.get("course_id")
-    if not course_id:
-        raise HTTPException(status_code=400, detail="course_id is required")
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            headers = {"Internal-Token": internal_token}
-            response = await client.post(
-                f"{data_node_url}/delete/course",
-                params={"course_id": course_id},
-                headers=headers
-            )
-            
-            if response.status_code != 200:
-                raise HTTPException(status_code=500, detail=f"Failed to delete course: {response.text}")
-            
-            return response.json()
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
-
-
-@app.post("/admin/courses/bulk-import")
-async def bulk_import_courses_admin(
-    courses: List[dict],
-    current_admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """Bulk import courses (admin only)"""
-    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
-    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
-    
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            headers = {"Internal-Token": internal_token}
-            response = await client.post(
-                f"{data_node_url}/bulk/import/courses",
-                json=courses,
-                headers=headers
-            )
-            
-            if response.status_code != 200:
-                raise HTTPException(status_code=500, detail=f"Failed to import courses: {response.text}")
-            
-            return response.json()
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
-
-
-@app.post("/admin/courses/batch-assign-teacher")
-async def batch_assign_teacher_admin(
-    data: dict,
-    current_admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """Batch assign teacher to courses (admin only)"""
-    data_node_url = os.getenv("DATA_NODE_URL", "http://localhost:8001")
-    internal_token = os.getenv("INTERNAL_TOKEN", "change-this-internal-token")
-    
-    course_ids = data.get("course_ids", [])
-    teacher_id = data.get("teacher_id")
-    
-    if not course_ids or not teacher_id:
-        raise HTTPException(status_code=400, detail="course_ids and teacher_id are required")
-    
-    # Verify teacher exists
-    teacher = db.query(Teacher).filter(Teacher.teacher_id == teacher_id).first()
-    if not teacher:
-        raise HTTPException(status_code=404, detail="Teacher not found")
-    
-    updated = []
-    errors = []
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            headers = {"Internal-Token": internal_token}
-            
-            for course_id in course_ids:
-                try:
-                    response = await client.post(
-                        f"{data_node_url}/update/course",
-                        params={"course_id": course_id},
-                        json={"course_teacher_id": teacher_id},
-                        headers=headers
-                    )
-                    
-                    if response.status_code == 200:
-                        updated.append(course_id)
-                    else:
-                        errors.append({
-                            "course_id": course_id,
-                            "error": response.text
-                        })
-                except Exception as e:
-                    errors.append({
-                        "course_id": course_id,
-                        "error": str(e)
-                    })
-        
-        return {
-            "success": True,
-            "updated_count": len(updated),
-            "error_count": len(errors),
-            "updated": updated,
-            "errors": errors
-        }
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=500, detail=f"Error contacting data node: {str(e)}")
 
 
 # ===== System Settings Management =====
